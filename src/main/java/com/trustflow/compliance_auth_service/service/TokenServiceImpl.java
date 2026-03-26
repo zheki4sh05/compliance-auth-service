@@ -1,8 +1,15 @@
 package com.trustflow.compliance_auth_service.service;
 
 import com.trustflow.compliance_auth_service.dto.*;
+import com.trustflow.compliance_auth_service.exception.DuplicateEmailException;
+import com.trustflow.compliance_auth_service.repository.RoleRepository;
+import com.trustflow.compliance_auth_service.repository.UserRepository;
+import com.trustflow.compliance_auth_service.domain.Role;
+import com.trustflow.compliance_auth_service.domain.User;
+import com.trustflow.compliance_auth_service.domain.enums.RoleType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -40,6 +47,9 @@ public class TokenServiceImpl implements TokenService {
     private final RegisteredClientRepository registeredClientRepository;
     private final JwtDecoder jwtDecoder;
     private final JdbcTemplate jdbcTemplate;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
@@ -247,6 +257,125 @@ public class TokenServiceImpl implements TokenService {
         } catch (JwtException e) {
             log.error("Failed to get token info: {}", e.getMessage());
             throw new IllegalArgumentException("Invalid token");
+        }
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse register(RegisterRequest request) {
+        log.info("Registering user with email: {}", request.getEmail());
+
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new com.trustflow.compliance_auth_service.exception.DuplicateEmailException("Пользователь с таким email уже существует");
+        }
+
+        RoleType roleType;
+        try {
+            roleType = com.trustflow.compliance_auth_service.domain.enums.RoleType.valueOf(request.getRole());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid role: " + request.getRole());
+        }
+
+        com.trustflow.compliance_auth_service.domain.Role role = roleRepository.findByName(roleType)
+                .orElseThrow(() -> new IllegalArgumentException("Role not found: " + request.getRole()));
+
+        String username = request.getEmail();
+        String encodedPassword = passwordEncoder.encode(request.getPassword());
+
+        com.trustflow.compliance_auth_service.domain.User user = com.trustflow.compliance_auth_service.domain.User.builder()
+                .username(username)
+                .email(request.getEmail())
+                .password(encodedPassword)
+                .firstName(request.getFirstName())
+                .lastName(request.getLastName())
+                .departmentId(request.getDepartmentId())
+                .isFirstLogin(true)
+                .enabled(true)
+                .accountNonExpired(true)
+                .accountNonLocked(true)
+                .credentialsNonExpired(true)
+                .roles(java.util.Set.of(role))
+                .build();
+
+        userRepository.save(user);
+
+        String clientId = "monitoring-service";
+        TokenResponse tokenResponse = authenticate(username, request.getPassword(), clientId);
+
+        RegisterUserResponse userResponse = RegisterUserResponse.builder()
+                .id(user.getId().toString())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .role(request.getRole())
+                .departmentId(user.getDepartmentId())
+                .isFirstLogin(user.getIsFirstLogin())
+                .build();
+
+        AuthTokens authTokens = AuthTokens.builder()
+                .accessToken(tokenResponse.getAccessToken())
+                .refreshToken(tokenResponse.getRefreshToken())
+                .build();
+
+        return AuthResponse.builder()
+                .user(userResponse)
+                .tokens(authTokens)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse login(LoginRequest request) {
+        String email = request.getEmail();
+        String username = request.getUsername();
+        String password = request.getPassword();
+        String clientId = request.getClientId() != null ? request.getClientId() : "monitoring-service";
+
+        if (email == null && username == null) {
+            throw new IllegalArgumentException("Either email or username must be provided");
+        }
+
+        String actualUsername;
+        if (email != null) {
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new org.springframework.security.authentication.BadCredentialsException("Неверный email или пароль"));
+            actualUsername = user.getUsername();
+        } else {
+            actualUsername = username;
+        }
+
+        try {
+            TokenResponse tokenResponse = authenticate(actualUsername, password, clientId);
+            User user = userRepository.findByUsername(actualUsername)
+                    .orElseThrow(() -> new org.springframework.security.authentication.BadCredentialsException("Неверный email или пароль"));
+
+            // Get user's role (first role)
+            String role = user.getRoles().stream()
+                    .findFirst()
+                    .map(r -> r.getName().name())
+                    .orElse("USER");
+
+            RegisterUserResponse userResponse = RegisterUserResponse.builder()
+                    .id(user.getId().toString())
+                    .email(user.getEmail())
+                    .firstName(user.getFirstName())
+                    .lastName(user.getLastName())
+                    .role(role)
+                    .departmentId(user.getDepartmentId())
+                    .isFirstLogin(user.getIsFirstLogin())
+                    .build();
+
+            AuthTokens authTokens = AuthTokens.builder()
+                    .accessToken(tokenResponse.getAccessToken())
+                    .refreshToken(tokenResponse.getRefreshToken())
+                    .build();
+
+            return AuthResponse.builder()
+                    .user(userResponse)
+                    .tokens(authTokens)
+                    .build();
+        } catch (org.springframework.security.core.AuthenticationException e) {
+            throw new org.springframework.security.authentication.BadCredentialsException("Неверный email или пароль");
         }
     }
 

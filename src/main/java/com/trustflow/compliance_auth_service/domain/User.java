@@ -42,6 +42,18 @@ public class User {
     @Column(nullable = false)
     private Boolean credentialsNonExpired = true;
 
+    @Column(name = "first_name", length = 100)
+    private String firstName;
+
+    @Column(name = "last_name", length = 100)
+    private String lastName;
+
+    @Column(name = "department_id", length = 100)
+    private String departmentId;
+
+    @Column(name = "is_first_login", nullable = false)
+    private Boolean isFirstLogin = true;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",
