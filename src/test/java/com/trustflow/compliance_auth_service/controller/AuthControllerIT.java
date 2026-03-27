@@ -49,8 +49,8 @@ class AuthControllerIT extends AbstractIntegrationTest {
     @Test
     void validateTokenShouldReturnTrueForValidToken() throws Exception {
         LoginRequest request = new LoginRequest();
-        request.setUsername("testuser");
-        request.setPassword("password");
+        request.setEmail("manager@company.com");
+        request.setPassword("manager123");
         request.setClientId("monitoring-service");
 
         MvcResult result = mockMvc.perform(post("/api/auth/login")
@@ -60,8 +60,8 @@ class AuthControllerIT extends AbstractIntegrationTest {
                 .andReturn();
 
         String response = result.getResponse().getContentAsString();
-        TokenResponse tokenResponse = objectMapper.readValue(response, TokenResponse.class);
-        String accessToken = tokenResponse.getAccessToken();
+        AuthResponse authResponse = objectMapper.readValue(response, AuthResponse.class);
+        String accessToken = authResponse.getTokens().getAccessToken();
 
         mockMvc.perform(get("/api/auth/validate")
                         .param("token", accessToken))

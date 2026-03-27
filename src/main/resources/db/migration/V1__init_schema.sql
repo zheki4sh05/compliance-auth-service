@@ -99,9 +99,10 @@ CREATE INDEX idx_oauth2_authorization_client ON oauth2_authorization(registered_
 
 -- Insert default roles
 INSERT INTO roles (name, description) VALUES
-                                          ('ROLE_MANAGER', 'Manager role with basic permissions'),
-                                          ('ROLE_SUPERVISOR', 'Supervisor role with elevated permissions'),
-                                          ('ROLE_EXECUTIVE', 'Executive role with full administrative permissions');
+                                          ('MANAGER', 'Manager role with basic permissions'),
+                                          ('SUPERVISOR', 'Supervisor role with elevated permissions'),
+                                          ('EXECUTIVE', 'Executive role with full administrative permissions'),
+                                          ('DEFAULT', 'Default role for newly registered users');
 
 -- Insert default users (passwords: manager123, supervisor123, executive123)
 INSERT INTO users (username, password, email) VALUES
@@ -111,6 +112,6 @@ INSERT INTO users (username, password, email) VALUES
 
 -- Assign roles to users
 INSERT INTO user_roles (user_id, role_id) VALUES
-                                              (1, 1), -- manager -> ROLE_MANAGER
-                                              (2, 2), -- supervisor -> ROLE_SUPERVISOR
-                                              (3, 3); -- executive -> ROLE_EXECUTIVE
+                                              (1, 1), -- manager -> MANAGER
+                                              (2, 2), -- supervisor -> SUPERVISOR
+                                              (3, 3); -- executive -> EXECUTIVE

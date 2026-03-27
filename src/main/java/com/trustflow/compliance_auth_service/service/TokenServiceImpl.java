@@ -269,15 +269,8 @@ public class TokenServiceImpl implements TokenService {
             throw new com.trustflow.compliance_auth_service.exception.DuplicateEmailException("Пользователь с таким email уже существует");
         }
 
-        RoleType roleType;
-        try {
-            roleType = com.trustflow.compliance_auth_service.domain.enums.RoleType.valueOf(request.getRole());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid role: " + request.getRole());
-        }
-
-        com.trustflow.compliance_auth_service.domain.Role role = roleRepository.findByName(roleType)
-                .orElseThrow(() -> new IllegalArgumentException("Role not found: " + request.getRole()));
+        com.trustflow.compliance_auth_service.domain.Role role = roleRepository.findByName(RoleType.DEFAULT)
+                .orElseThrow(() -> new IllegalStateException("Default role DEFAULT not found"));
 
         String username = request.getEmail();
         String encodedPassword = passwordEncoder.encode(request.getPassword());
@@ -307,7 +300,7 @@ public class TokenServiceImpl implements TokenService {
                 .email(user.getEmail())
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
-                .role(request.getRole())
+                .role("DEFAULT")
                 .departmentId(user.getDepartmentId())
                 .isFirstLogin(user.getIsFirstLogin())
                 .build();

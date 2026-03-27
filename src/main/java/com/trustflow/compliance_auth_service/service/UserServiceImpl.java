@@ -86,9 +86,9 @@ public class UserServiceImpl implements UserService {
                     .collect(Collectors.toSet());
             user.setRoles(roles);
         } else {
-            // По умолчанию роль MANAGER
-            Role defaultRole = roleRepository.findByName(RoleType.ROLE_MANAGER)
-                    .orElseThrow(() -> new IllegalStateException("Default role MANAGER not found"));
+            // По умолчанию роль DEFAULT
+            Role defaultRole = roleRepository.findByName(RoleType.DEFAULT)
+                    .orElseThrow(() -> new IllegalStateException("Default role DEFAULT not found"));
             user.setRoles(Set.of(defaultRole));
         }
 
@@ -186,10 +186,10 @@ public class UserServiceImpl implements UserService {
 
     private List<String> getPermissionsByRole(Set<Role> roles) {
         // Мапинг ролей на права доступа
-        if (roles.stream().anyMatch(r -> r.getName() == RoleType.ROLE_EXECUTIVE)) {
+        if (roles.stream().anyMatch(r -> r.getName() == RoleType.EXECUTIVE)) {
             return List.of("VIEW_CASES", "EDIT_CASES", "DELETE_CASES", "ASSIGN_TASKS",
                     "MANAGE_USERS", "VIEW_REPORTS", "MANAGE_SETTINGS");
-        } else if (roles.stream().anyMatch(r -> r.getName() == RoleType.ROLE_SUPERVISOR)) {
+        } else if (roles.stream().anyMatch(r -> r.getName() == RoleType.SUPERVISOR)) {
             return List.of("VIEW_CASES", "EDIT_CASES", "ASSIGN_TASKS",
                     "VIEW_REPORTS", "MANAGE_TEAM");
         } else {
