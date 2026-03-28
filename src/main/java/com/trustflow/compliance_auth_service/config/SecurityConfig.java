@@ -37,13 +37,13 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/api/**", "/actuator/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                .securityMatcher("/api/**", "/auth/**", "/actuator/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
 
                 .authorizeHttpRequests(authorize -> authorize
                         // Публичные endpoints для аутентификации
-                        .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers("/api/auth/refresh").permitAll()
-                        .requestMatchers("/api/auth/validate").permitAll()
+                        .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/auth/refresh").permitAll()
+                        .requestMatchers("/auth/validate").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/swagger-ui.html").permitAll()

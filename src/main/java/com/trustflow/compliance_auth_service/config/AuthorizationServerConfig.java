@@ -66,7 +66,7 @@ public class AuthorizationServerConfig {
                 .securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
                 .with(authorizationServerConfigurer, Customizer.withDefaults())
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/auth/**", "/api/users/**", "/api/tokens/**").permitAll()
+                        .requestMatchers("/auth/**", "/api/users/**", "/api/tokens/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions
