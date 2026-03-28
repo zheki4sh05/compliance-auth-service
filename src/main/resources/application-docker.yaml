@@ -2,6 +2,9 @@ server:
   port: 9091
 
 spring:
+  api-docs:
+    path: /v1/api-docs
+    enabled: true
   application:
     name: compliance-auth-service
 
@@ -47,6 +50,21 @@ oauth2:
         - http://localhost:8083
         - http://localhost:8084
         - http://localhost:3000
+
+# SpringDoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+    display-request-duration: true
+    filter: true
+  packages-to-scan: com.trustflow.compliance_auth_service.controller
+  paths-to-match: /api/**,/auth/**
 
 logging:
   level:

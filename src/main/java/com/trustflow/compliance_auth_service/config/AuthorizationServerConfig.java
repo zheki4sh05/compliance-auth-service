@@ -139,7 +139,7 @@ public class AuthorizationServerConfig {
     private RegisteredClient createMonitoringServiceClient() {
         return RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("monitoring-service")
-                .clientSecret("{bcrypt}$2a$12$YourHashedSecretHere")
+                .clientSecret("{bcrypt}$2a$12$LQv3c1yqBWVHxkltdWFQg.WJw1oXNAYYzGqnXxzzfQZgI4g6KdOYi")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
@@ -156,7 +156,7 @@ public class AuthorizationServerConfig {
     private RegisteredClient createRulesServiceClient() {
         return RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("rules-service")
-                .clientSecret("{bcrypt}$2a$12$YourHashedSecretHere")
+                .clientSecret("{bcrypt}$2a$12$LQv3c1yqBWVHxkltdWFQg.WJw1oXNAYYzGqnXxzzfQZgI4g6KdOYi")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
@@ -174,7 +174,7 @@ public class AuthorizationServerConfig {
     private RegisteredClient createWorkflowServiceClient() {
         return RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("workflow-service")
-                .clientSecret("{bcrypt}$2a$12$YourHashedSecretHere")
+                .clientSecret("{bcrypt}$2a$12$LQv3c1yqBWVHxkltdWFQg.WJw1oXNAYYzGqnXxzzfQZgI4g6KdOYi")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
@@ -192,7 +192,7 @@ public class AuthorizationServerConfig {
     private RegisteredClient createNotificationServiceClient() {
         return RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("notification-service")
-                .clientSecret("{bcrypt}$2a$12$YourHashedSecretHere")
+                .clientSecret("{bcrypt}$2a$12$LQv3c1yqBWVHxkltdWFQg.WJw1oXNAYYzGqnXxzzfQZgI4g6KdOYi")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                 .redirectUri("http://localhost:8084/login/oauth2/code/auth-server")
@@ -206,7 +206,7 @@ public class AuthorizationServerConfig {
     private RegisteredClient createFrontendClient() {
         return RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("frontend-client")
-                .clientSecret("{bcrypt}$2a$12$YourHashedSecretHere")
+                .clientSecret("{bcrypt}$2a$12$LQv3c1yqBWVHxkltdWFQg.WJw1oXNAYYzGqnXxzzfQZgI4g6KdOYi")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.NONE) // Public client для SPA
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)

@@ -72,8 +72,12 @@ public class TokenServiceImpl implements TokenService {
                 .tokenType(OAuth2TokenType.ACCESS_TOKEN)
                 .authorizedScopes(registeredClient.getScopes())
                 .build();
-
-        OAuth2AccessToken accessToken = (OAuth2AccessToken) tokenGenerator.generate(accessTokenContext);
+        OAuth2AccessToken accessToken=null;
+        try{
+            accessToken  = (OAuth2AccessToken) tokenGenerator.generate(accessTokenContext);
+        }catch (RuntimeException e){
+            log.error("error tokenGenerator.generate: {}", e.getMessage());
+        }
         if (accessToken == null) {
             throw new IllegalStateException("Failed to generate access token");
         }
@@ -264,6 +268,9 @@ public class TokenServiceImpl implements TokenService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         log.info("Registering user with email: {}", request.getEmail());
+        log.debug("Register request: email={}, firstName={}, lastName={}, departmentId={}, role={}",
+                request.getEmail(), request.getFirstName(), request.getLastName(),
+                request.getDepartmentId(), request.getRole());
 
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new com.trustflow.compliance_auth_service.exception.DuplicateEmailException("Пользователь с таким email уже существует");
@@ -322,7 +329,7 @@ public class TokenServiceImpl implements TokenService {
         String email = request.getEmail();
         String username = request.getUsername();
         String password = request.getPassword();
-        String clientId = request.getClientId() != null ? request.getClientId() : "monitoring-service";
+        String clientId = request.getClientId() != null ? request.getClientId() : "frontend-client";
 
         if (email == null && username == null) {
             throw new IllegalArgumentException("Either email or username must be provided");

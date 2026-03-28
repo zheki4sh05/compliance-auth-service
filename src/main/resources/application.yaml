@@ -58,7 +58,7 @@ oauth2:
     # Registered Clients (????????????)
     clients:
       - client-id: monitoring-service
-        client-secret: "{bcrypt}$2a$10$monitoring-service-secret"
+        client-secret: "{bcrypt}$2a$12$LQv3c1yqBWVHxkltdWFQg.WJw1oXNAYYzGqnXxzzfQZgI4g6KdOYi"
         scopes:
           - read
           - write
@@ -70,7 +70,7 @@ oauth2:
           - http://localhost:8081/login/oauth2/code/auth-server
 
       - client-id: rules-service
-        client-secret: "{bcrypt}$2a$10$rules-service-secret"
+        client-secret: "{bcrypt}$2a$12$LQv3c1yqBWVHxkltdWFQg.WJw1oXNAYYzGqnXxzzfQZgI4g6KdOYi"
         scopes:
           - read
           - write
@@ -83,7 +83,7 @@ oauth2:
           - http://localhost:8082/login/oauth2/code/auth-server
 
       - client-id: workflow-service
-        client-secret: "{bcrypt}$2a$10$workflow-service-secret"
+        client-secret: "{bcrypt}$2a$12$LQv3c1yqBWVHxkltdWFQg.WJw1oXNAYYzGqnXxzzfQZgI4g6KdOYi"
         scopes:
           - read
           - write
@@ -96,7 +96,7 @@ oauth2:
           - http://localhost:8083/login/oauth2/code/auth-server
 
       - client-id: notification-service
-        client-secret: "{bcrypt}$2a$10$notification-service-secret"
+        client-secret: "{bcrypt}$2a$12$LQv3c1yqBWVHxkltdWFQg.WJw1oXNAYYzGqnXxzzfQZgI4g6KdOYi"
         scopes:
           - read
           - notifications:send
@@ -119,6 +119,21 @@ management:
   health:
     defaults:
       enabled: true
+
+# SpringDoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+    display-request-duration: true
+    filter: true
+  packages-to-scan: com.trustflow.compliance_auth_service.controller
+  paths-to-match: /api/**,/auth/**
 
 # Logging
 logging:
