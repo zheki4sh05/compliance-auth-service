@@ -63,6 +63,9 @@ springdoc:
     tagsSorter: alpha
     display-request-duration: true
     filter: true
+    oauth:
+      client-id: swagger-ui-client
+      use-pkce-with-authorization-code-grant: true
   packages-to-scan: com.trustflow.compliance_auth_service.controller
   paths-to-match: /api/**,/auth/**
 

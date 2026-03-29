@@ -87,6 +87,7 @@ public class AuthorizationServerConfig {
                 new JdbcRegisteredClientRepository(jdbcTemplate);
 
         // Регистрация всех клиентов
+        registerClientIfNotExists(repository, "swagger-ui-client", createSwaggerUiClient());
         registerClientIfNotExists(repository, "frontend-client", createFrontendClient());
         registerClientIfNotExists(repository, "monitoring-service", createMonitoringServiceClient());
         registerClientIfNotExists(repository, "rules-service", createRulesServiceClient());
@@ -119,11 +120,13 @@ public class AuthorizationServerConfig {
 
     @Bean
     public OAuth2TokenGenerator<?> tokenGenerator(
-            JWKSource<SecurityContext> jwkSource,
+            JwtEncoder jwtEncoder,
             OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer) {
 
-        JwtGenerator jwtGenerator = new JwtGenerator(new NimbusJwtEncoder(jwkSource));
-        jwtGenerator.setJwtCustomizer(jwtCustomizer);
+        JwtGenerator jwtGenerator = new JwtGenerator(jwtEncoder);
+        if (jwtCustomizer != null) {
+            jwtGenerator.setJwtCustomizer(jwtCustomizer);
+        }
 
         OAuth2AccessTokenGenerator accessTokenGenerator = new OAuth2AccessTokenGenerator();
         OAuth2RefreshTokenGenerator refreshTokenGenerator = new OAuth2RefreshTokenGenerator();
@@ -208,7 +211,7 @@ public class AuthorizationServerConfig {
                 .clientId("frontend-client")
                 .clientSecret("{bcrypt}$2a$12$LQv3c1yqBWVHxkltdWFQg.WJw1oXNAYYzGqnXxzzfQZgI4g6KdOYi")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.NONE) // Public client для SPA
-                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .redirectUri("http://localhost:3000/callback")
                 .scope("read")
@@ -217,6 +220,23 @@ public class AuthorizationServerConfig {
                 .clientSettings(ClientSettings.builder()
                         .requireAuthorizationConsent(false)
                         .requireProofKey(true) // PKCE для SPA
+                        .build())
+                .build();
+    }
+
+    private RegisteredClient createSwaggerUiClient() {
+        return RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId("swagger-ui-client")
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .redirectUri("http://localhost:9091/swagger-ui/oauth2-redirect.html")
+                .scope("read")
+                .scope("write")
+                .tokenSettings(createTokenSettings())
+                .clientSettings(ClientSettings.builder()
+                        .requireAuthorizationConsent(false)
+                        .requireProofKey(true)
                         .build())
                 .build();
     }
@@ -277,10 +297,34 @@ public class AuthorizationServerConfig {
     }
 
     @Bean
-    public AuthorizationServerSettings authorizationServerSettings(
-            @Value("${oauth2.authorization-server.issuer-url:http://localhost:9091}") String issuerUrl) {
+    public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
                 .issuer(issuerUrl)
                 .build();
+    }
+
+    @Bean
+    public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
+        return new NimbusJwtEncoder(jwkSource);
+    }
+
+    @Bean
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer() {
+        return context -> {
+            JwtEncodingContext jwtContext = (JwtEncodingContext) context;
+
+            // Добавляем кастомные claims в токен
+            if (jwtContext.getPrincipal() != null) {
+                jwtContext.getClaims().claim("user_name", jwtContext.getPrincipal().getName());
+            }
+
+            // Добавляем client id в claims
+            if (jwtContext.getRegisteredClient() != null) {
+                jwtContext.getClaims().claim("client_id", jwtContext.getRegisteredClient().getId());
+            }
+
+            log.debug("Customizing JWT token for: {}", jwtContext.getPrincipal() != null ?
+                    jwtContext.getPrincipal().getName() : "unknown");
+        };
     }
 }

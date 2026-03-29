@@ -7,6 +7,8 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.security.OAuthFlow;
+import io.swagger.v3.oas.models.security.OAuthFlows;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,11 +38,16 @@ public class OpenApiConfig {
                         .url("http://auth-service:9091")
                         .description("Docker Environment"))
                 .components(new Components()
-                        .addSecuritySchemes("Bearer Authentication", new SecurityScheme()
-                                .type(SecurityScheme.Type.HTTP)
-                                .scheme("bearer")
-                                .bearerFormat("JWT")
-                                .description("Введите JWT токен, полученный из /auth/login")))
-                .addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"));
+                        .addSecuritySchemes("oauth2", new SecurityScheme()
+                                .type(SecurityScheme.Type.OAUTH2)
+                                .description("OAuth2 Authorization Code flow (PKCE) for Swagger UI")
+                                .flows(new OAuthFlows()
+                                        .authorizationCode(new OAuthFlow()
+                                                .authorizationUrl("http://localhost:9091/oauth2/authorize")
+                                                .tokenUrl("http://localhost:9091/oauth2/token")
+                                                .scopes(new io.swagger.v3.oas.models.security.Scopes()
+                                                        .addString("read", "Read access")
+                                                        .addString("write", "Write access"))))))
+                .addSecurityItem(new SecurityRequirement().addList("oauth2", java.util.List.of("read", "write")));
     }
 }

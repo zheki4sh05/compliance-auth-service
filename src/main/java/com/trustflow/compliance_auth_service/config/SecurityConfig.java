@@ -17,6 +17,8 @@ import org.springframework.security.crypto.bcrypt.*;
 import org.springframework.security.crypto.password.*;
 import org.springframework.security.web.*;
 import org.springframework.security.web.authentication.*;
+import org.springframework.security.oauth2.server.resource.web.*;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.web.cors.*;
 
 import java.util.*;
@@ -85,7 +87,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 // Exception handling
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
+                        .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint())
+                        .accessDeniedHandler(new AccessDeniedHandlerImpl())
                 );
 
         return http.build();
@@ -104,7 +107,6 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form
-                        .loginPage("/login")
                         .defaultSuccessUrl("/", true)
                         .permitAll()
                 )
