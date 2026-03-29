@@ -63,6 +63,7 @@ springdoc:
     tagsSorter: alpha
     display-request-duration: true
     filter: true
+    persist-authorization: true
     oauth:
       client-id: swagger-ui-client
       use-pkce-with-authorization-code-grant: true

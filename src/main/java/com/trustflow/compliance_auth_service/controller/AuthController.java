@@ -3,10 +3,12 @@ package com.trustflow.compliance_auth_service.controller;
 import com.trustflow.compliance_auth_service.dto.AuthResponse;
 import com.trustflow.compliance_auth_service.dto.LoginRequest;
 import com.trustflow.compliance_auth_service.dto.RegisterRequest;
-import com.trustflow.compliance_auth_service.dto.RegisterResponse;
 import com.trustflow.compliance_auth_service.dto.TokenResponse;
 import com.trustflow.compliance_auth_service.service.TokenService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,9 +23,60 @@ public class AuthController {
 
     private final TokenService tokenService;
 
-    @Operation(summary = "Аутентификация пользователя")
+    @Operation(
+            summary = "Аутентификация пользователя",
+            description = """
+                    Публичный endpoint: Bearer не нужен. Тестовые пользователи из миграции V1:
+                    manager@company.com / manager123,
+                    supervisor@company.com / supervisor123,
+                    executive@company.com / executive123.
+                    После успешного ответа скопируйте accessToken в Authorize → Bearer Authentication для вызовов /api/**.
+                    """,
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = LoginRequest.class),
+                            examples = {
+                                    @ExampleObject(
+                                            name = "По email (manager)",
+                                            summary = "MANAGER",
+                                            value = """
+                                                    {
+                                                      "email": "manager@company.com",
+                                                      "password": "manager123",
+                                                      "clientId": "frontend-client"
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "По email (executive)",
+                                            summary = "EXECUTIVE",
+                                            value = """
+                                                    {
+                                                      "email": "executive@company.com",
+                                                      "password": "executive123",
+                                                      "clientId": "frontend-client"
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "По username",
+                                            summary = "supervisor",
+                                            value = """
+                                                    {
+                                                      "username": "supervisor",
+                                                      "password": "supervisor123",
+                                                      "clientId": "frontend-client"
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            )
+    )
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse authResponse = tokenService.login(request);
         return ResponseEntity.ok(authResponse);
     }

@@ -9,19 +9,23 @@ import lombok.Data;
 public class RegisterRequest {
     
     @NotBlank(message = "Email обязателен")
-    @Schema(description = "Email пользователя", example = "user@example.com", required = true)
+    @Schema(description = "Email пользователя", example = "user@example.com", requiredMode = Schema.RequiredMode.REQUIRED)
     private String email;
     
     @NotBlank(message = "Имя обязательно")
-    @Schema(description = "Имя пользователя", example = "Иван", required = true)
+    @Schema(description = "Имя пользователя", example = "Иван", requiredMode = Schema.RequiredMode.REQUIRED)
     private String firstName;
     
     @NotBlank(message = "Фамилия обязательна")
-    @Schema(description = "Фамилия пользователя", example = "Иванов", required = true)
+    @Schema(description = "Фамилия пользователя", example = "Иванов", requiredMode = Schema.RequiredMode.REQUIRED)
     private String lastName;
     
     @NotBlank(message = "Пароль обязателен")
-    @Schema(description = "Пароль пользователя", example = "password123", required = true)
+    @Schema(
+            description = "Пароль пользователя (передаётся только в теле запроса, в ответе не возвращается)",
+            example = "SecurePass123",
+            requiredMode = Schema.RequiredMode.REQUIRED
+    )
     private String password;
     
     @Schema(description = "Роль пользователя (если не указана, будет присвоена роль DEFAULT)", example = "DEFAULT")

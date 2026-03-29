@@ -26,13 +26,16 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.context.AuthorizationServerContext;
 import org.springframework.security.oauth2.server.authorization.token.DefaultOAuth2TokenContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
+import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -50,6 +53,7 @@ public class TokenServiceImpl implements TokenService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthorizationServerSettings authorizationServerSettings;
 
     @Override
     @Transactional
@@ -69,14 +73,16 @@ public class TokenServiceImpl implements TokenService {
         OAuth2TokenContext accessTokenContext = DefaultOAuth2TokenContext.builder()
                 .registeredClient(registeredClient)
                 .principal(authentication)
+                .authorizationServerContext(buildAuthorizationServerContext())
+                .authorizationGrantType(new AuthorizationGrantType("password"))
                 .tokenType(OAuth2TokenType.ACCESS_TOKEN)
                 .authorizedScopes(registeredClient.getScopes())
                 .build();
         OAuth2AccessToken accessToken=null;
         try{
-            accessToken  = (OAuth2AccessToken) tokenGenerator.generate(accessTokenContext);
+            accessToken = generateAccessToken(accessTokenContext, registeredClient.getScopes());
         }catch (RuntimeException e){
-            log.error("error tokenGenerator.generate: {}", e.getMessage());
+            log.error("error tokenGenerator.generate", e);
         }
         if (accessToken == null) {
             throw new IllegalStateException("Failed to generate access token");
@@ -86,6 +92,8 @@ public class TokenServiceImpl implements TokenService {
         OAuth2TokenContext refreshTokenContext = DefaultOAuth2TokenContext.builder()
                 .registeredClient(registeredClient)
                 .principal(authentication)
+                .authorizationServerContext(buildAuthorizationServerContext())
+                .authorizationGrantType(new AuthorizationGrantType("password"))
                 .tokenType(OAuth2TokenType.REFRESH_TOKEN)
                 .authorizedScopes(registeredClient.getScopes())
                 .build();
@@ -165,11 +173,14 @@ public class TokenServiceImpl implements TokenService {
         OAuth2TokenContext accessTokenContext = DefaultOAuth2TokenContext.builder()
                 .registeredClient(registeredClient)
                 .principal(authentication)
+                .authorizationServerContext(buildAuthorizationServerContext())
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .authorization(authorization)
                 .tokenType(OAuth2TokenType.ACCESS_TOKEN)
                 .authorizedScopes(authorization.getAuthorizedScopes())
                 .build();
 
-        OAuth2AccessToken newAccessToken = (OAuth2AccessToken) tokenGenerator.generate(accessTokenContext);
+        OAuth2AccessToken newAccessToken = generateAccessToken(accessTokenContext, authorization.getAuthorizedScopes());
         if (newAccessToken == null) {
             throw new IllegalStateException("Failed to generate new access token");
         }
@@ -178,6 +189,9 @@ public class TokenServiceImpl implements TokenService {
         OAuth2TokenContext refreshTokenContext = DefaultOAuth2TokenContext.builder()
                 .registeredClient(registeredClient)
                 .principal(authentication)
+                .authorizationServerContext(buildAuthorizationServerContext())
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .authorization(authorization)
                 .tokenType(OAuth2TokenType.REFRESH_TOKEN)
                 .authorizedScopes(authorization.getAuthorizedScopes())
                 .build();
@@ -388,5 +402,59 @@ public class TokenServiceImpl implements TokenService {
         int deletedCount = jdbcTemplate.update(sql, username);
 
         log.info("Revoked {} token(s) for user: {}", deletedCount, username);
+    }
+
+    private AuthorizationServerContext buildAuthorizationServerContext() {
+        return new AuthorizationServerContext() {
+            @Override
+            public String getIssuer() {
+                return authorizationServerSettings.getIssuer();
+            }
+
+            @Override
+            public AuthorizationServerSettings getAuthorizationServerSettings() {
+                return authorizationServerSettings;
+            }
+        };
+    }
+
+    private OAuth2AccessToken generateAccessToken(
+            OAuth2TokenContext tokenContext,
+            Set<String> fallbackScopes) {
+        Object generatedToken = tokenGenerator.generate(tokenContext);
+        if (generatedToken == null) {
+            return null;
+        }
+
+        if (generatedToken instanceof OAuth2AccessToken oauth2AccessToken) {
+            return oauth2AccessToken;
+        }
+
+        if (generatedToken instanceof Jwt jwt) {
+            Set<String> tokenScopes = resolveScopes(jwt.getClaims(), fallbackScopes);
+            return new OAuth2AccessToken(
+                    OAuth2AccessToken.TokenType.BEARER,
+                    jwt.getTokenValue(),
+                    jwt.getIssuedAt(),
+                    jwt.getExpiresAt(),
+                    tokenScopes
+            );
+        }
+
+        throw new IllegalStateException("Unsupported access token type: " + generatedToken.getClass().getName());
+    }
+
+    private Set<String> resolveScopes(Map<String, Object> claims, Set<String> fallbackScopes) {
+        Object scopeClaim = claims.get("scope");
+        if (scopeClaim instanceof String scopeString) {
+            return Set.of(scopeString.split(" "));
+        }
+        if (scopeClaim instanceof Iterable<?> iterable) {
+            return java.util.stream.StreamSupport.stream(iterable.spliterator(), false)
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .collect(Collectors.toSet());
+        }
+        return fallbackScopes;
     }
 }
