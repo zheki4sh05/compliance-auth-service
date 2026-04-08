@@ -35,6 +35,10 @@ spring:
 oauth2:
   authorization-server:
     issuer-url: http://auth-service:9091
+    jwt:
+      private-key-pem: ${OAUTH2_PRIVATE_KEY_PEM}
+      public-key-pem: ${OAUTH2_PUBLIC_KEY_PEM}
+      key-id: ${OAUTH2_KEY_ID:auth-service-rsa-key}
 
     token:
       access-token:

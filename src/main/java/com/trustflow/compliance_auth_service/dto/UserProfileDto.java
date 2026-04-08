@@ -19,7 +19,7 @@ import java.util.Set;
 @Schema(description = "Профиль пользователя")
 public class UserProfileDto {
 
-    @Schema(description = "ID пользователя", example = "3")
+    @Schema(description = "ID пользователя", example = "550e8400-e29b-41d4-a716-446655440000")
     private String id;
 
     @Schema(description = "Email", example = "ivan.ivanov@company.com")

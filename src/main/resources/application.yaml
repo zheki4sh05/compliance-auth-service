@@ -2,6 +2,8 @@ server:
   port: 9091
 
 spring:
+  config:
+    import: "optional:file:.env[.properties]"
   application:
     name: auth-service
 
@@ -28,11 +30,15 @@ spring:
 oauth2:
   authorization-server:
     issuer-url: http://localhost:9091
+    jwt:
+      private-key-pem: ${OAUTH2_PRIVATE_KEY_PEM:}
+      public-key-pem: ${OAUTH2_PUBLIC_KEY_PEM:}
+      key-id: ${OAUTH2_KEY_ID:auth-service-rsa-key}
 
     # Token Settings
     token:
       access-token:
-        time-to-live: 900 # 15 minutes in seconds
+        time-to-live: 86400 # 24 hours in seconds
       refresh-token:
         time-to-live: 604800 # 7 days in seconds
         reuse: false # Refresh token rotation enabled

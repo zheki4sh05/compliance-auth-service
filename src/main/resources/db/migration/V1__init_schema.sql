@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- Roles table
 CREATE TABLE roles (
                        id BIGSERIAL PRIMARY KEY,
@@ -7,7 +9,7 @@ CREATE TABLE roles (
 
 -- Users table
 CREATE TABLE users (
-                       id BIGSERIAL PRIMARY KEY,
+                       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                        username VARCHAR(100) NOT NULL UNIQUE,
                        password VARCHAR(255) NOT NULL,
                        email VARCHAR(100) NOT NULL UNIQUE,
@@ -21,7 +23,7 @@ CREATE TABLE users (
 
 -- User-Roles junction table
 CREATE TABLE user_roles (
-                            user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                             role_id BIGINT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
                             PRIMARY KEY (user_id, role_id)
 );
@@ -111,7 +113,10 @@ INSERT INTO users (username, password, email) VALUES
                                                   ('executive', '{bcrypt}$2a$12$7ZG7fGGQf8wYq0YgKKVLQ.hO5d7HrCqWLxJZ0jQUzKXqzX7N7xY7e', 'executive@company.com');
 
 -- Assign roles to users
-INSERT INTO user_roles (user_id, role_id) VALUES
-                                              (1, 1), -- manager -> MANAGER
-                                              (2, 2), -- supervisor -> SUPERVISOR
-                                              (3, 3); -- executive -> EXECUTIVE
+INSERT INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM users u
+         JOIN roles r ON
+    (u.username = 'manager' AND r.name = 'MANAGER') OR
+    (u.username = 'supervisor' AND r.name = 'SUPERVISOR') OR
+    (u.username = 'executive' AND r.name = 'EXECUTIVE');

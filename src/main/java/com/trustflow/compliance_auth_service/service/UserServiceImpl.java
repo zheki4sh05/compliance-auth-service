@@ -37,7 +37,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserDto findById(Long id) {
+    public UserDto findById(UUID id) {
         log.info("Fetching user by id: {}", id);
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + id));
@@ -100,7 +100,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserDto update(Long id, UserDto userDto) {
+    public UserDto update(UUID id, UserDto userDto) {
         log.info("Updating user with id: {}", id);
 
         User user = userRepository.findById(id)
@@ -139,7 +139,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void delete(Long id) {
+    public void delete(UUID id) {
         log.info("Deleting user with id: {}", id);
 
         User user = userRepository.findById(id)

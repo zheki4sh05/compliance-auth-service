@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/users")
@@ -32,7 +33,7 @@ public class UserController {
     @Operation(summary = "Получить пользователя по ID")
     @PreAuthorize("hasAnyRole('SUPERVISOR', 'EXECUTIVE')")
     @GetMapping("/{id}")
-    public ResponseEntity<UserDto> getUserById(@PathVariable Long id) {
+    public ResponseEntity<UserDto> getUserById(@PathVariable UUID id) {
         return ResponseEntity.ok(userService.findById(id));
     }
 
@@ -47,7 +48,7 @@ public class UserController {
     @Operation(summary = "Обновить пользователя")
     @PreAuthorize("hasAnyRole('SUPERVISOR', 'EXECUTIVE')")
     @PutMapping("/{id}")
-    public ResponseEntity<UserDto> updateUser(@PathVariable Long id, @RequestBody UserDto userDto) {
+    public ResponseEntity<UserDto> updateUser(@PathVariable UUID id, @RequestBody UserDto userDto) {
         UserDto updated = userService.update(id, userDto);
         return ResponseEntity.ok(updated);
     }
@@ -55,7 +56,7 @@ public class UserController {
     @Operation(summary = "Удалить пользователя")
     @PreAuthorize("hasRole('EXECUTIVE')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
         userService.delete(id);
         return ResponseEntity.noContent().build();
     }

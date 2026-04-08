@@ -31,11 +31,16 @@ import org.springframework.security.oauth2.server.authorization.token.*;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
+import java.math.BigInteger;
+import java.security.KeyFactory;
 import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.RSAPublicKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.UUID;
 
 @Configuration
@@ -53,6 +58,15 @@ public class AuthorizationServerConfig {
 
     @Value("${oauth2.authorization-server.token.refresh-token.reuse}")
     private boolean reuseRefreshToken;
+
+    @Value("${oauth2.authorization-server.jwt.private-key-pem}")
+    private String privateKeyPem;
+
+    @Value("${oauth2.authorization-server.jwt.public-key-pem:}")
+    private String publicKeyPem;
+
+    @Value("${oauth2.authorization-server.jwt.key-id:auth-service-rsa-key}")
+    private String keyId;
 
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -268,27 +282,68 @@ public class AuthorizationServerConfig {
 
     @Bean
     public JWKSource<SecurityContext> jwkSource() {
-        KeyPair keyPair = generateRsaKey();
-        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
-        RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
+        RSAPrivateKey privateKey = parsePrivateKey(privateKeyPem);
+        RSAPublicKey publicKey = parseOrDerivePublicKey(publicKeyPem, privateKey);
 
         RSAKey rsaKey = new RSAKey.Builder(publicKey)
                 .privateKey(privateKey)
-                .keyID(UUID.randomUUID().toString())
+                .keyID(keyId)
                 .build();
 
         JWKSet jwkSet = new JWKSet(rsaKey);
         return new ImmutableJWKSet<>(jwkSet);
     }
 
-    private KeyPair generateRsaKey() {
+    private RSAPrivateKey parsePrivateKey(String pem) {
         try {
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048);
-            return keyPairGenerator.generateKeyPair();
+            if (pem == null || pem.isBlank()) {
+                throw new IllegalStateException("Missing private RSA key. Set oauth2.authorization-server.jwt.private-key-pem");
+            }
+            String normalizedPem = normalizePem(pem);
+            String clean = normalizedPem
+                    .replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replaceAll("\\s", "");
+            byte[] keyBytes = Base64.getDecoder().decode(clean);
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+            return (RSAPrivateKey) KeyFactory.getInstance("RSA").generatePrivate(keySpec);
         } catch (Exception ex) {
-            throw new IllegalStateException("Failed to generate RSA key pair", ex);
+            throw new IllegalStateException("Failed to parse RSA private key from environment", ex);
         }
+    }
+
+    private RSAPublicKey parseOrDerivePublicKey(String pem, RSAPrivateKey privateKey) {
+        if (pem != null && !pem.isBlank()) {
+            try {
+                String normalizedPem = normalizePem(pem);
+                String clean = normalizedPem
+                        .replace("-----BEGIN PUBLIC KEY-----", "")
+                        .replace("-----END PUBLIC KEY-----", "")
+                        .replaceAll("\\s", "");
+                byte[] keyBytes = Base64.getDecoder().decode(clean);
+                X509EncodedKeySpec keySpec = new X509EncodedKeySpec(keyBytes);
+                return (RSAPublicKey) KeyFactory.getInstance("RSA").generatePublic(keySpec);
+            } catch (Exception ex) {
+                throw new IllegalStateException("Failed to parse RSA public key from environment", ex);
+            }
+        }
+
+        try {
+            if (privateKey instanceof RSAPrivateCrtKey rsaPrivateCrtKey) {
+                BigInteger modulus = rsaPrivateCrtKey.getModulus();
+                BigInteger publicExponent = rsaPrivateCrtKey.getPublicExponent();
+                RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(modulus, publicExponent);
+                return (RSAPublicKey) KeyFactory.getInstance("RSA").generatePublic(publicKeySpec);
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to derive RSA public key from private key", ex);
+        }
+
+        throw new IllegalStateException("Public key is missing and cannot be derived from private key format");
+    }
+
+    private String normalizePem(String pem) {
+        return pem.replace("\\n", "\n").trim();
     }
 
     @Bean
