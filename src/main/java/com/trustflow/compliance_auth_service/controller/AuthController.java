@@ -81,7 +81,34 @@ public class AuthController {
         return ResponseEntity.ok(authResponse);
     }
 
-    @Operation(summary = "Регистрация пользователя")
+    @Operation(
+            summary = "Регистрация пользователя",
+            description = """
+                    Публичный endpoint. После создания пользователя возвращаются токены для указанного OAuth2 client_id.
+                    Укажите clientId в теле (как у /auth/login), например frontend-client, swagger-ui-client или monitoring-service.
+                    Если clientId не передан — используется frontend-client.
+                    """,
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = RegisterRequest.class),
+                            examples = @ExampleObject(
+                                    name = "С clientId",
+                                    value = """
+                                            {
+                                              "email": "new.user@company.com",
+                                              "firstName": "Иван",
+                                              "lastName": "Иванов",
+                                              "password": "SecurePass123",
+                                              "departmentId": "dept-1",
+                                              "clientId": "frontend-client"
+                                            }
+                                            """
+                            )
+                    )
+            )
+    )
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         AuthResponse response = tokenService.register(request);

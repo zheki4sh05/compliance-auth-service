@@ -282,9 +282,9 @@ public class TokenServiceImpl implements TokenService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         log.info("Registering user with email: {}", request.getEmail());
-        log.debug("Register request: email={}, firstName={}, lastName={}, departmentId={}, role={}",
+        log.debug("Register request: email={}, firstName={}, lastName={}, departmentId={}, role={}, clientId={}",
                 request.getEmail(), request.getFirstName(), request.getLastName(),
-                request.getDepartmentId(), request.getRole());
+                request.getDepartmentId(), request.getRole(), request.getClientId());
 
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new com.trustflow.compliance_auth_service.exception.DuplicateEmailException("Пользователь с таким email уже существует");
@@ -313,7 +313,9 @@ public class TokenServiceImpl implements TokenService {
 
         userRepository.save(user);
 
-        String clientId = "monitoring-service";
+        String clientId = request.getClientId() != null && !request.getClientId().isBlank()
+                ? request.getClientId().trim()
+                : "frontend-client";
         TokenResponse tokenResponse = authenticate(username, request.getPassword(), clientId);
 
         RegisterUserResponse userResponse = RegisterUserResponse.builder()

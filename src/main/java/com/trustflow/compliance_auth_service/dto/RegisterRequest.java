@@ -33,4 +33,10 @@ public class RegisterRequest {
     
     @Schema(description = "Идентификатор отдела")
     private String departmentId;
+
+    @Schema(
+            description = "OAuth2 client id для выдачи токенов после регистрации (как в /auth/login). Если не указан — используется frontend-client.",
+            example = "frontend-client"
+    )
+    private String clientId;
 }

@@ -80,7 +80,9 @@ public class AuthorizationServerConfig {
                 .securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
                 .with(authorizationServerConfigurer, Customizer.withDefaults())
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/auth/**", "/api/users/**", "/api/tokens/**").permitAll()
+                        // Публично для API-gateway и клиентов (JWKS / OAuth metadata)
+                        .requestMatchers("/oauth2/jwks").permitAll()
+                        .requestMatchers("/.well-known/oauth-authorization-server").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions
@@ -355,6 +357,7 @@ public class AuthorizationServerConfig {
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
                 .issuer(issuerUrl)
+                .jwkSetEndpoint("/oauth2/jwks")
                 .build();
     }
 
