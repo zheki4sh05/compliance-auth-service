@@ -56,6 +56,7 @@ public class TokenServiceImpl implements TokenService {
     private final PasswordEncoder passwordEncoder;
     private final AuthorizationServerSettings authorizationServerSettings;
     private final CompanyEventPublisher companyEventPublisher;
+    private final CmsCompanyInfoClient cmsCompanyInfoClient;
 
     @Override
     @Transactional
@@ -391,6 +392,8 @@ public class TokenServiceImpl implements TokenService {
                     .map(r -> r.getName().name())
                     .orElse("USER");
 
+            String employeeId = cmsCompanyInfoClient.fetchEmployeeId(tokenResponse.getAccessToken());
+
             RegisterUserResponse userResponse = RegisterUserResponse.builder()
                     .id(user.getId().toString())
                     .email(user.getEmail())
@@ -398,6 +401,7 @@ public class TokenServiceImpl implements TokenService {
                     .lastName(user.getLastName())
                     .role(role)
                     .isFirstLogin(user.getIsFirstLogin())
+                    .employeeId(employeeId)
                     .build();
 
             AuthTokens authTokens = AuthTokens.builder()

@@ -5,6 +5,8 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.trustflow.compliance_auth_service.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +23,7 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -41,11 +44,15 @@ import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.UUID;
 
 @Configuration
 @Slf4j
+@RequiredArgsConstructor
 public class AuthorizationServerConfig {
+
+    private final UserRepository userRepository;
 
     @Value("${oauth2.authorization-server.issuer-url}")
     private String issuerUrl;
@@ -374,6 +381,23 @@ public class AuthorizationServerConfig {
             // Добавляем кастомные claims в токен
             if (jwtContext.getPrincipal() != null) {
                 jwtContext.getClaims().claim("user_name", jwtContext.getPrincipal().getName());
+            }
+
+            // Добавляем userId только в access token
+            if (OAuth2TokenType.ACCESS_TOKEN.equals(jwtContext.getTokenType()) && jwtContext.getPrincipal() != null) {
+                String principalName = jwtContext.getPrincipal().getName();
+
+                userRepository.findByUsername(principalName)
+                        .or(() -> userRepository.findByEmail(principalName.toLowerCase(Locale.ROOT)))
+                        .ifPresentOrElse(
+                                user -> {
+                                    String userId = user.getId().toString();
+                                    jwtContext.getClaims().claim("userId", userId);
+                                    // Backward-compatible alias for downstream services expecting snake_case
+                                    jwtContext.getClaims().claim("user_id", userId);
+                                },
+                                () -> log.warn("JWT customizer could not resolve userId for principal={}", principalName)
+                        );
             }
 
             // Добавляем client id в claims

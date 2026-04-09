@@ -89,3 +89,7 @@ app:
   kafka:
     topics:
       company: ${KAFKA_TOPIC_COMPANY:company}
+
+integration:
+  cms-company-info:
+    base-url: ${CMS_COMPANY_INFO_BASE_URL:http://cms-company-info:9092}

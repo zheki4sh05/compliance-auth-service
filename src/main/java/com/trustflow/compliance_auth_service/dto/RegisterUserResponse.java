@@ -16,4 +16,5 @@ public class RegisterUserResponse {
     private String lastName;
     private String role;
     private Boolean isFirstLogin;
+    private String employeeId;
 }

@@ -156,10 +156,15 @@ logging:
   level:
     org.springframework.security: DEBUG
     org.springframework.security.oauth2: DEBUG
-    com.company.auth: DEBUG
+    com:
+      trustflow: DEBUG
 
 app:
   kafka:
     topics:
       company: ${KAFKA_TOPIC_COMPANY:company}
+
+integration:
+  cms-company-info:
+    base-url: ${CMS_COMPANY_INFO_BASE_URL:http://localhost:9092}
 
