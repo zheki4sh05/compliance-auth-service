@@ -31,8 +31,8 @@ public class RegisterRequest {
     @Schema(description = "Роль пользователя (если не указана, будет присвоена роль DEFAULT)", example = "DEFAULT")
     private String role;
     
-    @Schema(description = "Идентификатор отдела")
-    private String departmentId;
+    @Schema(description = "Название компании", example = "TrustFlow LLC")
+    private String companyName;
 
     @Schema(
             description = "OAuth2 client id для выдачи токенов после регистрации (как в /auth/login). Если не указан — используется frontend-client.",

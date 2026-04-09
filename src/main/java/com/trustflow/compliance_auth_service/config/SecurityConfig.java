@@ -19,9 +19,6 @@ import org.springframework.security.web.*;
 import org.springframework.security.web.authentication.*;
 import org.springframework.security.oauth2.server.resource.web.*;
 import org.springframework.security.web.access.AccessDeniedHandlerImpl;
-import org.springframework.web.cors.*;
-
-import java.util.*;
 
 @Configuration
 @EnableWebSecurity
@@ -81,8 +78,6 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(Customizer.withDefaults())
                 )
-                // CORS конфигурация
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 // Отключаем CSRF для REST API
                 .csrf(AbstractHttpConfigurer::disable)
                 // Exception handling
@@ -117,7 +112,6 @@ public class SecurityConfig {
                         .deleteCookies("JSESSIONID")
                         .permitAll()
                 )
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(Customizer.withDefaults());
 
         return http.build();
@@ -146,55 +140,4 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder(12);
     }
 
-    /**
-     * CORS Configuration для интеграции с микросервисами
-     * Разрешает запросы от всех ваших сервисов
-     */
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-
-        // Разрешенные origins (ваши микросервисы и frontend)
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:8081",  // Monitoring Service
-                "http://localhost:8082",  // Rules Service
-                "http://localhost:8083",  // Workflow Service
-                "http://localhost:8084",  // Notification Service
-                "http://localhost:3000",  // Frontend (React/Angular/Vue)
-                "http://localhost:4200"   // Frontend (Angular dev server)
-        ));
-
-        // Разрешенные HTTP методы
-        configuration.setAllowedMethods(Arrays.asList(
-                "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
-        ));
-
-        // Разрешенные headers
-        configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Type",
-                "Accept",
-                "Origin",
-                "X-Requested-With",
-                "Access-Control-Request-Method",
-                "Access-Control-Request-Headers"
-        ));
-
-        // Разрешить отправку credentials (cookies, authorization headers)
-        configuration.setAllowCredentials(true);
-
-        // Exposed headers (которые клиент может прочитать)
-        configuration.setExposedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Disposition"
-        ));
-
-        // Максимальное время кеширования preflight запросов
-        configuration.setMaxAge(3600L);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-
-        return source;
-    }
 }

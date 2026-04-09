@@ -101,7 +101,8 @@ public class AuthController {
                                               "firstName": "Иван",
                                               "lastName": "Иванов",
                                               "password": "SecurePass123",
-                                              "departmentId": "dept-1",
+                                              "role": "EXECUTIVE",
+                                              "companyName": "TrustFlow LLC",
                                               "clientId": "frontend-client"
                                             }
                                             """

@@ -7,6 +7,12 @@ spring:
   application:
     name: auth-service
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
   datasource:
     url: jdbc:postgresql://localhost:5432/auth_db
     username: postgres
@@ -151,4 +157,9 @@ logging:
     org.springframework.security: DEBUG
     org.springframework.security.oauth2: DEBUG
     com.company.auth: DEBUG
+
+app:
+  kafka:
+    topics:
+      company: ${KAFKA_TOPIC_COMPANY:company}
 

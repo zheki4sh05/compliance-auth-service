@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -54,6 +55,7 @@ public class TokenServiceImpl implements TokenService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthorizationServerSettings authorizationServerSettings;
+    private final CompanyEventPublisher companyEventPublisher;
 
     @Override
     @Transactional
@@ -282,16 +284,25 @@ public class TokenServiceImpl implements TokenService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         log.info("Registering user with email: {}", request.getEmail());
-        log.debug("Register request: email={}, firstName={}, lastName={}, departmentId={}, role={}, clientId={}",
+        log.debug("Register request: email={}, firstName={}, lastName={}, role={}, clientId={}, companyName={}",
                 request.getEmail(), request.getFirstName(), request.getLastName(),
-                request.getDepartmentId(), request.getRole(), request.getClientId());
+                request.getRole(), request.getClientId(), request.getCompanyName());
 
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new com.trustflow.compliance_auth_service.exception.DuplicateEmailException("Пользователь с таким email уже существует");
         }
 
-        com.trustflow.compliance_auth_service.domain.Role role = roleRepository.findByName(RoleType.DEFAULT)
-                .orElseThrow(() -> new IllegalStateException("Default role DEFAULT not found"));
+        RoleType roleType = RoleType.DEFAULT;
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            try {
+                roleType = RoleType.valueOf(request.getRole().trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("Unknown role: " + request.getRole());
+            }
+        }
+
+        com.trustflow.compliance_auth_service.domain.Role role = roleRepository.findByName(roleType)
+                .orElseThrow(() -> new IllegalStateException("Role not found"));
 
         String username = request.getEmail();
         String encodedPassword = passwordEncoder.encode(request.getPassword());
@@ -302,7 +313,6 @@ public class TokenServiceImpl implements TokenService {
                 .password(encodedPassword)
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
-                .departmentId(request.getDepartmentId())
                 .isFirstLogin(true)
                 .enabled(true)
                 .accountNonExpired(true)
@@ -312,6 +322,17 @@ public class TokenServiceImpl implements TokenService {
                 .build();
 
         userRepository.save(user);
+
+        if (roleType == RoleType.EXECUTIVE) {
+            if (request.getCompanyName() == null || request.getCompanyName().isBlank()) {
+                throw new IllegalArgumentException("companyName is required when role is EXECUTIVE");
+            }
+            companyEventPublisher.publishCompanyCreated(
+                    request.getCompanyName().trim(),
+                    user.getId(),
+                    roleType.name()
+            );
+        }
 
         String clientId = request.getClientId() != null && !request.getClientId().isBlank()
                 ? request.getClientId().trim()
@@ -323,8 +344,7 @@ public class TokenServiceImpl implements TokenService {
                 .email(user.getEmail())
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
-                .role("DEFAULT")
-                .departmentId(user.getDepartmentId())
+                .role(roleType.name())
                 .isFirstLogin(user.getIsFirstLogin())
                 .build();
 
@@ -377,7 +397,6 @@ public class TokenServiceImpl implements TokenService {
                     .firstName(user.getFirstName())
                     .lastName(user.getLastName())
                     .role(role)
-                    .departmentId(user.getDepartmentId())
                     .isFirstLogin(user.getIsFirstLogin())
                     .build();
 

@@ -50,9 +50,6 @@ public class User {
     @Column(name = "last_name", length = 100)
     private String lastName;
 
-    @Column(name = "department_id", length = 100)
-    private String departmentId;
-
     @Column(name = "is_first_login", nullable = false)
     private Boolean isFirstLogin = true;
 
