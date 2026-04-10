@@ -31,7 +31,6 @@ public class UserController {
     }
 
     @Operation(summary = "Получить пользователя по ID")
-    @PreAuthorize("hasAnyRole('SUPERVISOR', 'EXECUTIVE')")
     @GetMapping("/{id}")
     public ResponseEntity<UserDto> getUserById(@PathVariable UUID id) {
         return ResponseEntity.ok(userService.findById(id));
@@ -46,7 +45,6 @@ public class UserController {
     }
 
     @Operation(summary = "Обновить пользователя")
-    @PreAuthorize("hasAnyRole('SUPERVISOR', 'EXECUTIVE')")
     @PutMapping("/{id}")
     public ResponseEntity<UserDto> updateUser(@PathVariable UUID id, @RequestBody UserDto userDto) {
         UserDto updated = userService.update(id, userDto);
@@ -54,7 +52,6 @@ public class UserController {
     }
 
     @Operation(summary = "Удалить пользователя")
-    @PreAuthorize("hasRole('EXECUTIVE')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
         userService.delete(id);

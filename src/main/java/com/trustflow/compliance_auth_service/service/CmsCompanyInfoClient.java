@@ -42,6 +42,17 @@ public class CmsCompanyInfoClient {
         }
     }
 
+    public String fetchEmployeeByUserId(String userId, String authorizationHeader) {
+        log.info("Calling cms-company-info: method=GET, url={}", "/employee/" + userId);
+        log.debug("cms-company-info request headers: Authorization={}", maskAuthorizationHeader(authorizationHeader));
+
+        return cmsCompanyInfoRestClient.get()
+                .uri("/employee/{userId}", userId)
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .retrieve()
+                .body(String.class);
+    }
+
     private String maskToken(String token) {
         if (token == null || token.isBlank()) {
             return "<empty>";
@@ -50,6 +61,16 @@ public class CmsCompanyInfoClient {
             return "***";
         }
         return token.substring(0, 8) + "..." + token.substring(token.length() - 4);
+    }
+
+    private String maskAuthorizationHeader(String authorizationHeader) {
+        if (authorizationHeader == null || authorizationHeader.isBlank()) {
+            return "<empty>";
+        }
+        if (!authorizationHeader.startsWith("Bearer ")) {
+            return "***";
+        }
+        return "Bearer " + maskToken(authorizationHeader.substring("Bearer ".length()));
     }
 
     private String extractUserIdFromJwt(String token) {

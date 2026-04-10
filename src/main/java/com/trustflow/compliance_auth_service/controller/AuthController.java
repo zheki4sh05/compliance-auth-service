@@ -2,6 +2,7 @@ package com.trustflow.compliance_auth_service.controller;
 
 import com.trustflow.compliance_auth_service.dto.AuthResponse;
 import com.trustflow.compliance_auth_service.dto.LoginRequest;
+import com.trustflow.compliance_auth_service.dto.RegisterUserResponse;
 import com.trustflow.compliance_auth_service.dto.RegisterRequest;
 import com.trustflow.compliance_auth_service.dto.TokenResponse;
 import com.trustflow.compliance_auth_service.service.TokenService;
@@ -138,5 +139,19 @@ public class AuthController {
     public ResponseEntity<Boolean> validateToken(@RequestParam String token) {
         boolean isValid = tokenService.validateToken(token);
         return ResponseEntity.ok(isValid);
+    }
+
+    @Operation(summary = "Получить userId по email")
+    @GetMapping("/email-exists")
+    public ResponseEntity<String> emailExists(@RequestParam String email) {
+        return ResponseEntity.ok(tokenService.getUserIdByEmail(email));
+    }
+
+    @Operation(summary = "Получить сотрудника по userId")
+    @GetMapping("/employee/{userId}")
+    public ResponseEntity<RegisterUserResponse> getEmployeeByUserId(
+            @PathVariable String userId
+    ) {
+        return ResponseEntity.ok(tokenService.getEmployeeByUserId(userId));
     }
 }

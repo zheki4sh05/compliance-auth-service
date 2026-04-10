@@ -58,10 +58,10 @@ public class SecurityConfig {
                         // User endpoints с ролями
                         .requestMatchers(HttpMethod.GET, "/api/users").hasRole("EXECUTIVE")
                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/users/{id}").hasAnyRole("SUPERVISOR", "EXECUTIVE")
+                        .requestMatchers(HttpMethod.GET, "/api/users/{id}").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/users").hasRole("EXECUTIVE")
-                        .requestMatchers(HttpMethod.PUT, "/api/users/{id}").hasAnyRole("SUPERVISOR", "EXECUTIVE")
-                        .requestMatchers(HttpMethod.DELETE, "/api/users/{id}").hasRole("EXECUTIVE")
+                        .requestMatchers(HttpMethod.PUT, "/api/users/{id}").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/users/{id}").authenticated()
 
                         // Token endpoints
                         .requestMatchers("/api/tokens/**").authenticated()

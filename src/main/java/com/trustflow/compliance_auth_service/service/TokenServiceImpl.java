@@ -15,6 +15,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
@@ -38,6 +39,7 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -429,6 +431,62 @@ public class TokenServiceImpl implements TokenService {
         log.info("Revoked {} token(s) for user: {}", deletedCount, username);
     }
 
+    @Override
+    public String getUserIdByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("email is required");
+        }
+        User user = userRepository.findByEmail(email.trim())
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+        return user.getId().toString();
+    }
+
+    @Override
+    public RegisterUserResponse getEmployeeByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        log.debug("getEmployeeByUserId called with raw userId={}", userId);
+
+        String normalizedUserId = normalizeUserId(userId);
+        UUID userUuid;
+        try {
+            userUuid = UUID.fromString(normalizedUserId);
+        } catch (IllegalArgumentException ex) {
+            throw new UsernameNotFoundException("User not found with id: " + normalizedUserId);
+        }
+
+        User user = userRepository.findById(userUuid)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userUuid));
+
+        String role = user.getRoles().stream()
+                .findFirst()
+                .map(r -> r.getName().name())
+                .orElse("USER");
+
+        RegisterUserResponse response = RegisterUserResponse.builder()
+                .id(user.getId().toString())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .role(role)
+                .isFirstLogin(user.getIsFirstLogin())
+                .build();
+        log.debug("getEmployeeByUserId success for userId={}", response.getId());
+        return response;
+    }
+
+    private String normalizeUserId(String rawUserId) {
+        String value = rawUserId.trim();
+        if (value.startsWith("{") && value.endsWith("}")) {
+            value = value.substring(1, value.length() - 1);
+        }
+        if (value.startsWith("\"") && value.endsWith("\"") && value.length() > 1) {
+            value = value.substring(1, value.length() - 1);
+        }
+        return value;
+    }
+
     private AuthorizationServerContext buildAuthorizationServerContext() {
         return new AuthorizationServerContext() {
             @Override
@@ -482,4 +540,5 @@ public class TokenServiceImpl implements TokenService {
         }
         return fallbackScopes;
     }
+
 }

@@ -11,6 +11,8 @@ public interface TokenService {
     void revokeAllUserTokens(String username);
     AuthResponse register(RegisterRequest request);
     AuthResponse login(LoginRequest request);
+    String getUserIdByEmail(String email);
+    RegisterUserResponse getEmployeeByUserId(String userId);
 }
 
 
