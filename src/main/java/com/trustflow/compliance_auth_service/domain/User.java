@@ -53,6 +53,9 @@ public class User {
     @Column(name = "is_first_login", nullable = false)
     private Boolean isFirstLogin = true;
 
+    @Column(name = "is_super_user", nullable = false)
+    private Boolean isSuperUser = false;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",

@@ -41,6 +41,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         // Публичные endpoints для аутентификации
                         .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/auth/admin/login").permitAll()
                         .requestMatchers("/auth/refresh").permitAll()
                         .requestMatchers("/auth/validate").permitAll()
                         .requestMatchers("/auth/register").permitAll()

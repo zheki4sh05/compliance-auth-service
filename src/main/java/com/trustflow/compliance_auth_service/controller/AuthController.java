@@ -1,6 +1,7 @@
 package com.trustflow.compliance_auth_service.controller;
 
 import com.trustflow.compliance_auth_service.dto.AuthResponse;
+import com.trustflow.compliance_auth_service.dto.AdminLoginResponse;
 import com.trustflow.compliance_auth_service.dto.LoginRequest;
 import com.trustflow.compliance_auth_service.dto.RegisterUserResponse;
 import com.trustflow.compliance_auth_service.dto.RegisterRequest;
@@ -80,6 +81,13 @@ public class AuthController {
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse authResponse = tokenService.login(request);
         return ResponseEntity.ok(authResponse);
+    }
+
+    @Operation(summary = "Вход в админ-панель")
+    @PostMapping("/admin/login")
+    public ResponseEntity<AdminLoginResponse> adminLogin(@Valid @RequestBody LoginRequest request) {
+        AdminLoginResponse response = tokenService.adminLogin(request);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(

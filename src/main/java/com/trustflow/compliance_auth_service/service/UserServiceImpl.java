@@ -6,9 +6,12 @@ import com.trustflow.compliance_auth_service.dto.*;
 import com.trustflow.compliance_auth_service.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +28,8 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JdbcTemplate jdbcTemplate;
+    private final CmsCompanyInfoClient cmsCompanyInfoClient;
 
     @Override
     @Transactional(readOnly = true)
@@ -72,6 +77,7 @@ public class UserServiceImpl implements UserService {
                 .username(userDto.getUsername())
                 .password(passwordEncoder.encode(userDto.getPassword()))
                 .email(userDto.getEmail())
+                .isSuperUser(false)
                 .enabled(userDto.getEnabled() != null ? userDto.getEnabled() : true)
                 .accountNonExpired(true)
                 .accountNonLocked(true)
@@ -162,6 +168,33 @@ public class UserServiceImpl implements UserService {
         return findByUsername(username);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public AdminLoginUserDto getCurrentUserProfile() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new IllegalStateException("No authenticated user found");
+        }
+
+        User user = userRepository.findByUsername(authentication.getName())
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + authentication.getName()));
+
+        String role = user.getRoles().stream()
+                .findFirst()
+                .map(r -> r.getName().name())
+                .orElse("USER");
+
+        return AdminLoginUserDto.builder()
+                .id(user.getId().toString())
+                .name(buildDisplayName(user))
+                .email(user.getEmail())
+                .role(role)
+                .companyId(resolveCompanyId(user.getId()))
+                .employeeId(resolveEmployeeId(authentication))
+                .build();
+    }
+
     // Helper method для маппинга Entity -> DTO
     private UserDto mapToDto(User user) {
         UserDto dto = new UserDto();
@@ -195,6 +228,47 @@ public class UserServiceImpl implements UserService {
         } else {
             return List.of("VIEW_CASES", "EDIT_CASES", "ASSIGN_TASKS");
         }
+    }
+
+    private String buildDisplayName(User user) {
+        String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+        String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+        String fullName = (firstName + " " + lastName).trim();
+        if (!fullName.isBlank()) {
+            return fullName;
+        }
+        return user.getUsername();
+    }
+
+    private String resolveCompanyId(UUID userId) {
+        try {
+            return jdbcTemplate.queryForObject(
+                    "SELECT company_id::text FROM users WHERE id = ?",
+                    String.class,
+                    userId
+            );
+        } catch (DataAccessException ex) {
+            return null;
+        }
+    }
+
+    private String resolveEmployeeId(Authentication authentication) {
+        String accessToken = extractAccessToken(authentication);
+        if (accessToken == null || accessToken.isBlank()) {
+            return null;
+        }
+        return cmsCompanyInfoClient.fetchEmployeeId(accessToken);
+    }
+
+    private String extractAccessToken(Authentication authentication) {
+        if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
+            return jwtAuthenticationToken.getToken().getTokenValue();
+        }
+        Object credentials = authentication.getCredentials();
+        if (credentials instanceof String tokenString) {
+            return tokenString;
+        }
+        return null;
     }
 
 }

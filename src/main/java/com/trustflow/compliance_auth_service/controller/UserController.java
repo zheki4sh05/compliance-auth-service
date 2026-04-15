@@ -1,5 +1,6 @@
 package com.trustflow.compliance_auth_service.controller;
 
+import com.trustflow.compliance_auth_service.dto.AdminLoginUserDto;
 import com.trustflow.compliance_auth_service.dto.UserDto;
 import com.trustflow.compliance_auth_service.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -60,7 +61,7 @@ public class UserController {
 
     @Operation(summary = "Получить текущего пользователя")
     @GetMapping("/me")
-    public ResponseEntity<UserDto> getCurrentUser() {
-        return ResponseEntity.ok(userService.getCurrentUser());
+    public ResponseEntity<AdminLoginUserDto> getCurrentUser() {
+        return ResponseEntity.ok(userService.getCurrentUserProfile());
     }
 }

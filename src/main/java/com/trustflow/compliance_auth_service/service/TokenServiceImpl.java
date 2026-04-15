@@ -6,9 +6,11 @@ import com.trustflow.compliance_auth_service.repository.RoleRepository;
 import com.trustflow.compliance_auth_service.repository.UserRepository;
 import com.trustflow.compliance_auth_service.domain.Role;
 import com.trustflow.compliance_auth_service.domain.User;
+import com.trustflow.compliance_auth_service.domain.enums.PermissionValueType;
 import com.trustflow.compliance_auth_service.domain.enums.RoleType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -35,7 +37,9 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -292,7 +296,7 @@ public class TokenServiceImpl implements TokenService {
                 request.getRole(), request.getClientId(), request.getCompanyName());
 
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new com.trustflow.compliance_auth_service.exception.DuplicateEmailException("Пользователь с таким email уже существует");
+            throw new DuplicateEmailException("Пользователь с таким email уже существует");
         }
 
         RoleType roleType = RoleType.DEFAULT;
@@ -317,6 +321,7 @@ public class TokenServiceImpl implements TokenService {
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .isFirstLogin(true)
+                .isSuperUser(roleType == RoleType.EXECUTIVE)
                 .enabled(true)
                 .accountNonExpired(true)
                 .accountNonLocked(true)
@@ -330,11 +335,14 @@ public class TokenServiceImpl implements TokenService {
             if (request.getCompanyName() == null || request.getCompanyName().isBlank()) {
                 throw new IllegalArgumentException("companyName is required when role is EXECUTIVE");
             }
+            saveAllPermissionsForExecutive(user.getId());
             companyEventPublisher.publishCompanyCreated(
                     request.getCompanyName().trim(),
                     user.getId(),
                     roleType.name()
             );
+        } else {
+            saveEmptyPermissionsForUser(user.getId());
         }
 
         String clientId = request.getClientId() != null && !request.getClientId().isBlank()
@@ -415,6 +423,69 @@ public class TokenServiceImpl implements TokenService {
                     .user(userResponse)
                     .tokens(authTokens)
                     .build();
+        } catch (org.springframework.security.authentication.BadCredentialsException ex) {
+            throw ex;
+        } catch (org.springframework.security.authentication.BadCredentialsException ex) {
+            throw ex;
+        } catch (org.springframework.security.core.AuthenticationException e) {
+            throw new org.springframework.security.authentication.BadCredentialsException("Неверный email или пароль");
+        }
+    }
+
+    @Override
+    @Transactional
+    public AdminLoginResponse adminLogin(LoginRequest request) {
+        String email = request.getEmail();
+        String username = request.getUsername();
+        String password = request.getPassword();
+        String clientId = request.getClientId() != null ? request.getClientId() : "frontend-client";
+
+        if (email == null && username == null) {
+            throw new IllegalArgumentException("Either email or username must be provided");
+        }
+
+        String actualUsername;
+        if (email != null) {
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new org.springframework.security.authentication.BadCredentialsException("Неверный email или пароль"));
+            actualUsername = user.getUsername();
+        } else {
+            actualUsername = username;
+        }
+
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(actualUsername, password)
+            );
+
+            User user = userRepository.findByUsername(actualUsername)
+                    .orElseThrow(() -> new org.springframework.security.authentication.BadCredentialsException("Неверный email или пароль"));
+
+            if (!hasAllPermissionsForAdminPanel(user.getId())) {
+                throw new org.springframework.security.authentication.BadCredentialsException("Access Denied");
+            }
+
+            TokenResponse adminTokens = issueAdminPanelTokens(authentication, clientId, user.getId());
+
+            String role = user.getRoles().stream()
+                    .findFirst()
+                    .map(r -> r.getName().name())
+                    .orElse("USER");
+
+            AdminLoginUserDto userDto = AdminLoginUserDto.builder()
+                    .id(user.getId().toString())
+                    .name(buildDisplayName(user))
+                    .email(user.getEmail())
+                    .role(role)
+                    .companyId(resolveCompanyId(user.getId()))
+                    .employeeId(cmsCompanyInfoClient.fetchEmployeeId(adminTokens.getAccessToken()))
+                    .build();
+
+            return AdminLoginResponse.builder()
+                    .accessToken(adminTokens.getAccessToken())
+                    .refreshToken(adminTokens.getRefreshToken())
+                    .user(userDto)
+                    .build();
         } catch (org.springframework.security.core.AuthenticationException e) {
             throw new org.springframework.security.authentication.BadCredentialsException("Неверный email или пароль");
         }
@@ -487,6 +558,123 @@ public class TokenServiceImpl implements TokenService {
         return value;
     }
 
+    private TokenResponse issueAdminPanelTokens(Authentication authentication, String clientId, UUID userId) {
+        RegisteredClient registeredClient = registeredClientRepository.findByClientId(clientId);
+        if (registeredClient == null) {
+            throw new IllegalArgumentException("Invalid client ID: " + clientId);
+        }
+
+        OAuth2TokenContext accessTokenContext = DefaultOAuth2TokenContext.builder()
+                .registeredClient(registeredClient)
+                .principal(authentication)
+                .authorizationServerContext(buildAuthorizationServerContext())
+                .authorizationGrantType(new AuthorizationGrantType("password"))
+                .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                .authorizedScopes(registeredClient.getScopes())
+                .build();
+
+        OAuth2AccessToken accessToken = generateAccessToken(accessTokenContext, registeredClient.getScopes());
+        if (accessToken == null) {
+            throw new IllegalStateException("Failed to generate access token");
+        }
+
+        OAuth2TokenContext refreshTokenContext = DefaultOAuth2TokenContext.builder()
+                .registeredClient(registeredClient)
+                .principal(authentication)
+                .authorizationServerContext(buildAuthorizationServerContext())
+                .authorizationGrantType(new AuthorizationGrantType("password"))
+                .tokenType(OAuth2TokenType.REFRESH_TOKEN)
+                .authorizedScopes(registeredClient.getScopes())
+                .build();
+
+        OAuth2RefreshToken refreshToken = (OAuth2RefreshToken) tokenGenerator.generate(refreshTokenContext);
+        if (refreshToken == null) {
+            throw new IllegalStateException("Failed to generate refresh token");
+        }
+
+        saveAdminAuthTokens(userId, clientId, accessToken, refreshToken);
+
+        return TokenResponse.builder()
+                .accessToken(accessToken.getTokenValue())
+                .refreshToken(refreshToken.getTokenValue())
+                .tokenType("Bearer")
+                .expiresIn(accessToken.getExpiresAt() != null
+                        ? accessToken.getExpiresAt().getEpochSecond() - Instant.now().getEpochSecond()
+                        : 900L)
+                .scope(String.join(" ", registeredClient.getScopes()))
+                .build();
+    }
+
+    private void saveAdminAuthTokens(
+            UUID userId,
+            String clientId,
+            OAuth2AccessToken accessToken,
+            OAuth2RefreshToken refreshToken) {
+        String sql = """
+                INSERT INTO admin_auth_tokens (
+                    id, user_id, client_id, access_token, refresh_token, access_token_expires_at, refresh_token_expires_at
+                ) VALUES (
+                    gen_random_uuid(), ?, ?, ?, ?, ?, ?
+                )
+                """;
+
+        Timestamp accessExpiresAt = accessToken.getExpiresAt() != null
+                ? Timestamp.from(accessToken.getExpiresAt())
+                : null;
+        Timestamp refreshExpiresAt = refreshToken.getExpiresAt() != null
+                ? Timestamp.from(refreshToken.getExpiresAt())
+                : null;
+
+        jdbcTemplate.update(
+                sql,
+                userId,
+                clientId,
+                accessToken.getTokenValue(),
+                refreshToken.getTokenValue(),
+                accessExpiresAt,
+                refreshExpiresAt
+        );
+    }
+
+    private boolean hasAllPermissionsForAdminPanel(UUID userId) {
+        String requiredPermissions = Arrays.stream(PermissionValueType.values())
+                .map(Enum::name)
+                .collect(Collectors.joining(",", "{", "}"));
+
+        String sql = """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM permissions
+                    WHERE user_id = ?
+                      AND value @> ?::permission_value_enum[]
+                )
+                """;
+        Boolean hasPermissions = jdbcTemplate.queryForObject(sql, Boolean.class, userId, requiredPermissions);
+        return Boolean.TRUE.equals(hasPermissions);
+    }
+
+    private String buildDisplayName(User user) {
+        String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+        String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+        String fullName = (firstName + " " + lastName).trim();
+        if (!fullName.isBlank()) {
+            return fullName;
+        }
+        return user.getUsername();
+    }
+
+    private String resolveCompanyId(UUID userId) {
+        try {
+            return jdbcTemplate.queryForObject(
+                    "SELECT company_id::text FROM users WHERE id = ?",
+                    String.class,
+                    userId
+            );
+        } catch (DataAccessException ex) {
+            return null;
+        }
+    }
+
     private AuthorizationServerContext buildAuthorizationServerContext() {
         return new AuthorizationServerContext() {
             @Override
@@ -499,6 +687,26 @@ public class TokenServiceImpl implements TokenService {
                 return authorizationServerSettings;
             }
         };
+    }
+
+    private void saveAllPermissionsForExecutive(UUID userId) {
+        String allPermissionsAsArray = Arrays.stream(PermissionValueType.values())
+                .map(Enum::name)
+                .collect(Collectors.joining(",", "{", "}"));
+
+        String sql = """
+                INSERT INTO permissions (id, user_id, value)
+                VALUES (gen_random_uuid(), ?, ?::permission_value_enum[])
+                """;
+        jdbcTemplate.update(sql, userId, allPermissionsAsArray);
+    }
+
+    private void saveEmptyPermissionsForUser(UUID userId) {
+        String sql = """
+                INSERT INTO permissions (id, user_id, value)
+                VALUES (gen_random_uuid(), ?, '{}'::permission_value_enum[])
+                """;
+        jdbcTemplate.update(sql, userId);
     }
 
     private OAuth2AccessToken generateAccessToken(

@@ -14,6 +14,7 @@ public interface UserService {
     UserDto update(UUID id, UserDto userDto);
     void delete(UUID id);
     UserDto getCurrentUser();
+    AdminLoginUserDto getCurrentUserProfile();
 
 }
 
