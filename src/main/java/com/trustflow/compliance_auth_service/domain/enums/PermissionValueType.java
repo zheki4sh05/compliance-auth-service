@@ -1,0 +1,16 @@
+package com.trustflow.compliance_auth_service.domain.enums;
+
+public enum PermissionValueType {
+    VIEW_ALL_PAGES,
+    VIEW_DASHBOARD_PAGE,
+    VIEW_USERS_PAGE,
+    VIEW_RISK_OBJECTS_PAGE,
+    VIEW_INTEGRATIONS_PAGE,
+    VIEW_RULES_AND_RISKS_PAGE,
+    VIEW_SETTINGS_PAGE,
+    VIEW_PROFILE_PAGE,
+    EDIT_USERS,
+    MANAGE_RISK_OBJECTS,
+    MANAGE_INTEGRATIONS,
+    MANAGE_RULES_AND_RISKS
+}
