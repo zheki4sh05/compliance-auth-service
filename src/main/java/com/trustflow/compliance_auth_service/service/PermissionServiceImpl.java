@@ -10,6 +10,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ public class PermissionServiceImpl implements PermissionService {
 
     private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
+    private final CmsCompanyInfoClient cmsCompanyInfoClient;
 
     @Override
     @Transactional(readOnly = true)
@@ -162,28 +164,32 @@ public class PermissionServiceImpl implements PermissionService {
         }
         String normalizedCompanyId = companyId.trim();
 
-        String sql = """
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM users current_user
-                    JOIN users target_user ON target_user.id = ?
-                    WHERE current_user.id = ?
-                      AND current_user.company_id::text = ?
-                      AND target_user.company_id::text = ?
-                )
-                """;
+        String authorizationHeader = resolveAuthorizationHeader();
+        String currentUserCompanyId = cmsCompanyInfoClient.fetchCompanyIdByUserId(currentUserId.toString(), authorizationHeader);
+        String targetUserCompanyId = cmsCompanyInfoClient.fetchCompanyIdByUserId(targetUserId.toString(), authorizationHeader);
 
-        Boolean isInCompanyScope = jdbcTemplate.queryForObject(
-                sql,
-                Boolean.class,
-                targetUserId,
-                currentUserId,
-                normalizedCompanyId,
-                normalizedCompanyId
-        );
+        boolean isInCompanyScope = normalizedCompanyId.equals(currentUserCompanyId)
+                && normalizedCompanyId.equals(targetUserCompanyId);
 
-        if (!Boolean.TRUE.equals(isInCompanyScope)) {
+        if (!isInCompanyScope) {
             throw new AccessDeniedException("Permission management is allowed only within the requested company scope");
         }
+    }
+
+    private String resolveAuthorizationHeader() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AccessDeniedException("Authentication required");
+        }
+
+        if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
+            return "Bearer " + jwtAuthenticationToken.getToken().getTokenValue();
+        }
+        Object credentials = authentication.getCredentials();
+        if (credentials instanceof String tokenString && !tokenString.isBlank()) {
+            return tokenString.startsWith("Bearer ") ? tokenString : "Bearer " + tokenString;
+        }
+
+        throw new AccessDeniedException("Authentication token is required");
     }
 }

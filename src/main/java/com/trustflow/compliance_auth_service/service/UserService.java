@@ -3,15 +3,15 @@ package com.trustflow.compliance_auth_service.service;
 
 import com.trustflow.compliance_auth_service.dto.*;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface UserService {
-    List<UserDto> findAll();
+    CompanyUsersResponseDto findAllByCompanyId(String companyId);
     UserDto findById(UUID id);
     UserDto findByUsername(String username);
     UserDto create(UserDto userDto);
     UserDto update(UUID id, UserDto userDto);
+    UserStatusDto updateUserStatus(UUID id, String companyId, UserStatusDto userStatusDto);
     void delete(UUID id);
     UserDto getCurrentUser();
     AdminLoginUserDto getCurrentUserProfile();
