@@ -1,6 +1,7 @@
 package com.trustflow.compliance_auth_service.controller;
 
 import com.trustflow.compliance_auth_service.dto.AccessPermissionsDto;
+import com.trustflow.compliance_auth_service.dto.PermissionAccessCheckResponseDto;
 import com.trustflow.compliance_auth_service.service.PermissionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -41,5 +43,13 @@ public class PermissionController {
             @RequestHeader("companyId") String companyId,
             @RequestBody AccessPermissionsDto accessPermissionsDto) {
         return ResponseEntity.ok(permissionService.updateUserAccessPermissions(id, companyId, accessPermissionsDto));
+    }
+
+    @Operation(summary = "Проверить наличие permission у пользователя")
+    @GetMapping("/{id}/permissions/check")
+    public ResponseEntity<PermissionAccessCheckResponseDto> checkUserPermissionAccess(
+            @PathVariable UUID id,
+            @RequestParam("permission") String permission) {
+        return ResponseEntity.ok(permissionService.checkUserPermissionAccess(id, permission));
     }
 }

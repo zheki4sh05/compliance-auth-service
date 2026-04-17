@@ -2,6 +2,7 @@ package com.trustflow.compliance_auth_service.service;
 
 import com.trustflow.compliance_auth_service.domain.enums.PermissionValueType;
 import com.trustflow.compliance_auth_service.dto.AccessPermissionsDto;
+import com.trustflow.compliance_auth_service.dto.PermissionAccessCheckResponseDto;
 import com.trustflow.compliance_auth_service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class PermissionServiceImpl implements PermissionService {
+    private static final String ACCESS_PERMIT = "permit";
+    private static final String ACCESS_DENIED = "denied";
 
     private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
@@ -75,6 +78,41 @@ public class PermissionServiceImpl implements PermissionService {
 
         return AccessPermissionsDto.builder()
                 .accessPermissions(responsePermissions)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PermissionAccessCheckResponseDto checkUserPermissionAccess(UUID userId, String permission) {
+        if (permission == null || permission.isBlank()) {
+            return PermissionAccessCheckResponseDto.builder()
+                    .access(ACCESS_DENIED)
+                    .build();
+        }
+
+        PermissionValueType requestedPermission;
+        try {
+            requestedPermission = PermissionValueType.valueOf(permission.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return PermissionAccessCheckResponseDto.builder()
+                    .access(ACCESS_DENIED)
+                    .build();
+        }
+
+        String sql = """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM permissions
+                    WHERE user_id = ?
+                      AND value @> ARRAY[?::permission_value_enum]
+                )
+                """;
+
+        Boolean hasPermission = jdbcTemplate.queryForObject(sql, Boolean.class, userId, requestedPermission.name());
+        String access = Boolean.TRUE.equals(hasPermission) ? ACCESS_PERMIT : ACCESS_DENIED;
+
+        return PermissionAccessCheckResponseDto.builder()
+                .access(access)
                 .build();
     }
 
