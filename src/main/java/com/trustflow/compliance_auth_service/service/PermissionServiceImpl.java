@@ -30,9 +30,10 @@ public class PermissionServiceImpl implements PermissionService {
 
     @Override
     @Transactional(readOnly = true)
-    public AccessPermissionsDto getUserAccessPermissions(UUID userId) {
-        ensureCurrentUserCanManagePermissions();
+    public AccessPermissionsDto getUserAccessPermissions(UUID userId, String companyId) {
+        UUID currentUserId = ensureCurrentUserCanManagePermissions();
         ensureUserExists(userId);
+        ensureCompanyScope(currentUserId, userId, companyId);
 
         String sql = """
                 SELECT DISTINCT unnest(value)::text AS permission
@@ -54,9 +55,10 @@ public class PermissionServiceImpl implements PermissionService {
 
     @Override
     @Transactional
-    public AccessPermissionsDto updateUserAccessPermissions(UUID userId, AccessPermissionsDto accessPermissionsDto) {
-        ensureCurrentUserCanManagePermissions();
+    public AccessPermissionsDto updateUserAccessPermissions(UUID userId, String companyId, AccessPermissionsDto accessPermissionsDto) {
+        UUID currentUserId = ensureCurrentUserCanManagePermissions();
         ensureUserExists(userId);
+        ensureCompanyScope(currentUserId, userId, companyId);
 
         List<String> requestedPermissions = accessPermissionsDto != null
                 ? accessPermissionsDto.getAccessPermissions()
@@ -74,7 +76,7 @@ public class PermissionServiceImpl implements PermissionService {
                 .build();
     }
 
-    private void ensureCurrentUserCanManagePermissions() {
+    private UUID ensureCurrentUserCanManagePermissions() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new AccessDeniedException("Authentication required");
@@ -98,6 +100,8 @@ public class PermissionServiceImpl implements PermissionService {
         if (!Boolean.TRUE.equals(hasEditUsersPermission)) {
             throw new AccessDeniedException("Permission EDIT_USERS is required");
         }
+
+        return currentUserId;
     }
 
     private void ensureUserExists(UUID userId) {
@@ -150,5 +154,36 @@ public class PermissionServiceImpl implements PermissionService {
             return statement;
         });
         log.info("Updated permissions for user {}", userId);
+    }
+
+    private void ensureCompanyScope(UUID currentUserId, UUID targetUserId, String companyId) {
+        if (companyId == null || companyId.isBlank()) {
+            throw new IllegalArgumentException("companyId header is required");
+        }
+        String normalizedCompanyId = companyId.trim();
+
+        String sql = """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM users current_user
+                    JOIN users target_user ON target_user.id = ?
+                    WHERE current_user.id = ?
+                      AND current_user.company_id::text = ?
+                      AND target_user.company_id::text = ?
+                )
+                """;
+
+        Boolean isInCompanyScope = jdbcTemplate.queryForObject(
+                sql,
+                Boolean.class,
+                targetUserId,
+                currentUserId,
+                normalizedCompanyId,
+                normalizedCompanyId
+        );
+
+        if (!Boolean.TRUE.equals(isInCompanyScope)) {
+            throw new AccessDeniedException("Permission management is allowed only within the requested company scope");
+        }
     }
 }

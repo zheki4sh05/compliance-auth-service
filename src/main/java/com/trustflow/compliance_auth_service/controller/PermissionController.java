@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,15 +28,18 @@ public class PermissionController {
 
     @Operation(summary = "Получить permissions пользователя")
     @GetMapping("/{id}/access")
-    public ResponseEntity<AccessPermissionsDto> getUserAccessPermissions(@PathVariable UUID id) {
-        return ResponseEntity.ok(permissionService.getUserAccessPermissions(id));
+    public ResponseEntity<AccessPermissionsDto> getUserAccessPermissions(
+            @PathVariable UUID id,
+            @RequestHeader("companyId") String companyId) {
+        return ResponseEntity.ok(permissionService.getUserAccessPermissions(id, companyId));
     }
 
     @Operation(summary = "Обновить permissions пользователя")
     @PutMapping("/{id}/access")
     public ResponseEntity<AccessPermissionsDto> updateUserAccessPermissions(
             @PathVariable UUID id,
+            @RequestHeader("companyId") String companyId,
             @RequestBody AccessPermissionsDto accessPermissionsDto) {
-        return ResponseEntity.ok(permissionService.updateUserAccessPermissions(id, accessPermissionsDto));
+        return ResponseEntity.ok(permissionService.updateUserAccessPermissions(id, companyId, accessPermissionsDto));
     }
 }

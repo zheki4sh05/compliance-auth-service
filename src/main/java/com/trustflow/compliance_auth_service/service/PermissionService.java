@@ -5,6 +5,6 @@ import com.trustflow.compliance_auth_service.dto.AccessPermissionsDto;
 import java.util.UUID;
 
 public interface PermissionService {
-    AccessPermissionsDto getUserAccessPermissions(UUID userId);
-    AccessPermissionsDto updateUserAccessPermissions(UUID userId, AccessPermissionsDto accessPermissionsDto);
+    AccessPermissionsDto getUserAccessPermissions(UUID userId, String companyId);
+    AccessPermissionsDto updateUserAccessPermissions(UUID userId, String companyId, AccessPermissionsDto accessPermissionsDto);
 }
