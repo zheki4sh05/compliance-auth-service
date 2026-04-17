@@ -18,7 +18,6 @@ import org.springframework.security.crypto.password.*;
 import org.springframework.security.web.*;
 import org.springframework.security.web.authentication.*;
 import org.springframework.security.oauth2.server.resource.web.*;
-import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 
 @Configuration
 @EnableWebSecurity
@@ -57,11 +56,14 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").hasRole("EXECUTIVE")
 
                         // User endpoints с ролями
-                        .requestMatchers(HttpMethod.GET, "/api/users").hasRole("EXECUTIVE")
+                        .requestMatchers(HttpMethod.GET, "/api/users").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/{id}").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/users/{id}/access").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/users").hasRole("EXECUTIVE")
                         .requestMatchers(HttpMethod.PUT, "/api/users/{id}").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/users/{id}/status").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/users/{id}/access").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/users/{id}").authenticated()
 
                         // Token endpoints
@@ -83,8 +85,21 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 // Exception handling
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint())
-                        .accessDeniedHandler(new AccessDeniedHandlerImpl())
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                            response.setContentType("application/json");
+                            response.setCharacterEncoding("UTF-8");
+                            response.getWriter().write("{\"message\":\"Требуется вход\"}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpStatus.FORBIDDEN.value());
+                            response.setContentType("application/json");
+                            response.setCharacterEncoding("UTF-8");
+                            String message = accessDeniedException.getMessage() == null || accessDeniedException.getMessage().isBlank()
+                                    ? "Недостаточно прав"
+                                    : accessDeniedException.getMessage();
+                            response.getWriter().write("{\"message\":\"" + message.replace("\"", "\\\"") + "\"}");
+                        })
                 );
 
         return http.build();

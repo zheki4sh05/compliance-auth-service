@@ -56,6 +56,9 @@ public class User {
     @Column(name = "is_super_user", nullable = false)
     private Boolean isSuperUser = false;
 
+    @Column(name = "company_id")
+    private UUID companyId;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",

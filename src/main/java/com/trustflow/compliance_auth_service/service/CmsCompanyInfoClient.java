@@ -53,6 +53,27 @@ public class CmsCompanyInfoClient {
                 .body(String.class);
     }
 
+    public String fetchCompanyIdByUserId(String userId, String authorizationHeader) {
+        log.info("Calling cms-company-info: method=GET, url={}", "/company/id/" + userId);
+        log.debug("cms-company-info request headers: Authorization={}", maskAuthorizationHeader(authorizationHeader));
+
+        try {
+            String responseBody = cmsCompanyInfoRestClient.get()
+                    .uri("/company/id/{userId}", userId)
+                    .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                    .retrieve()
+                    .body(String.class);
+
+            if (responseBody == null || responseBody.isBlank()) {
+                return null;
+            }
+            return normalizeCompanyId(responseBody);
+        } catch (Exception ex) {
+            log.warn("Failed to fetch companyId from cms-company-info for user {}: {}", userId, ex.getMessage());
+            return null;
+        }
+    }
+
     private String maskToken(String token) {
         if (token == null || token.isBlank()) {
             return "<empty>";
@@ -100,6 +121,21 @@ public class CmsCompanyInfoClient {
             String employeeId = extractJsonField(trimmed, "employeeId");
             if (employeeId != null && !employeeId.isBlank()) {
                 return employeeId;
+            }
+            String id = extractJsonField(trimmed, "id");
+            if (id != null && !id.isBlank()) {
+                return id;
+            }
+        }
+        return trimmed.replace("\"", "");
+    }
+
+    private String normalizeCompanyId(String raw) {
+        String trimmed = raw.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            String companyId = extractJsonField(trimmed, "companyId");
+            if (companyId != null && !companyId.isBlank()) {
+                return companyId;
             }
             String id = extractJsonField(trimmed, "id");
             if (id != null && !id.isBlank()) {

@@ -8,7 +8,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -24,6 +27,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
+    private static final DateTimeFormatter LIST_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -33,11 +37,31 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserDto> findAll() {
-        log.info("Fetching all users");
-        return userRepository.findAll().stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
+    public CompanyUsersResponseDto findAllByCompanyId(String companyId) {
+        UUID currentUserId = resolveAuthenticatedUserId();
+        ensureUserHasPermission(currentUserId, PermissionValueType.VIEW_USERS_PAGE, "Недостаточно прав для просмотра пользователей");
+
+        UUID parsedCompanyId = parseCompanyId(companyId);
+        log.info("Fetching users for companyId={}", parsedCompanyId);
+
+        List<User> users = userRepository.findAllByCompanyId(parsedCompanyId);
+        if (users.isEmpty()) {
+            return CompanyUsersResponseDto.builder()
+                    .items(List.of())
+                    .build();
+        }
+
+        Map<UUID, List<String>> accessPermissionsByUserId = loadAccessPermissions(users);
+        List<CompanyUserItemDto> items = users.stream()
+                .map(user -> mapToCompanyUserItemDto(
+                        user,
+                        accessPermissionsByUserId.getOrDefault(user.getId(), List.of())
+                ))
+                .toList();
+
+        return CompanyUsersResponseDto.builder()
+                .items(items)
+                .build();
     }
 
     @Override
@@ -145,6 +169,33 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public UserStatusDto updateUserStatus(UUID id, String companyId, UserStatusDto userStatusDto) {
+        if (userStatusDto == null || userStatusDto.getStatus() == null || userStatusDto.getStatus().isBlank()) {
+            throw new IllegalArgumentException("Некорректный статус");
+        }
+
+        Boolean enabled = switch (userStatusDto.getStatus().trim().toLowerCase(Locale.ROOT)) {
+            case "active" -> true;
+            case "blocked" -> false;
+            default -> throw new IllegalArgumentException("Некорректный статус");
+        };
+
+        User targetUser = userRepository.findById(id)
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден"));
+
+        UUID currentUserId = resolveAuthenticatedUserId();
+        ensureCompanyAndPermissionScope(currentUserId, targetUser.getId(), companyId);
+
+        targetUser.setEnabled(enabled);
+        userRepository.save(targetUser);
+
+        return UserStatusDto.builder()
+                .status(enabled ? "active" : "blocked")
+                .build();
+    }
+
+    @Override
+    @Transactional
     public void delete(UUID id) {
         log.info("Deleting user with id: {}", id);
 
@@ -214,6 +265,80 @@ public class UserServiceImpl implements UserService {
         return dto;
     }
 
+    private CompanyUserItemDto mapToCompanyUserItemDto(User user, List<String> accessPermissions) {
+        return CompanyUserItemDto.builder()
+                .id(user.getId().toString())
+                .name(buildDisplayName(user))
+                .email(user.getEmail())
+                .status(Boolean.TRUE.equals(user.getEnabled()) ? "active" : "blocked")
+                .jobTitle(resolveJobTitle(user.getRoles()))
+                .accessPermissions(accessPermissions)
+                .createdAt(formatCreatedAt(user.getCreatedAt()))
+                .build();
+    }
+
+    private Map<UUID, List<String>> loadAccessPermissions(List<User> users) {
+        List<UUID> userIds = users.stream()
+                .map(User::getId)
+                .toList();
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+
+        String sql = """
+                SELECT p.user_id, unnest(p.value)::text AS permission
+                FROM permissions p
+                WHERE p.user_id = ANY (?::uuid[])
+                ORDER BY p.user_id, permission
+                """;
+
+        Map<UUID, List<String>> result = new HashMap<>();
+        jdbcTemplate.query(connection -> {
+            var statement = connection.prepareStatement(sql);
+            java.sql.Array userIdArray = connection.createArrayOf("uuid", userIds.toArray());
+            statement.setArray(1, userIdArray);
+            return statement;
+        }, rs -> {
+            UUID userId = rs.getObject("user_id", UUID.class);
+            String permission = rs.getString("permission");
+            result.computeIfAbsent(userId, ignored -> new ArrayList<>())
+                    .add(permission.toLowerCase(Locale.ROOT));
+        });
+
+        return result;
+    }
+
+    private UUID parseCompanyId(String companyId) {
+        if (companyId == null || companyId.isBlank()) {
+            throw new IllegalArgumentException("companyId is required");
+        }
+        try {
+            return UUID.fromString(companyId.trim());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Некорректный companyId");
+        }
+    }
+
+    private String resolveJobTitle(Set<Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return "employee";
+        }
+        if (roles.stream().anyMatch(role -> role.getName() == RoleType.EXECUTIVE)) {
+            return "top_management";
+        }
+        if (roles.stream().anyMatch(role -> role.getName() == RoleType.SUPERVISOR)) {
+            return "middle_management";
+        }
+        return "employee";
+    }
+
+    private String formatCreatedAt(LocalDateTime createdAt) {
+        if (createdAt == null) {
+            return null;
+        }
+        return createdAt.format(LIST_DATE_FORMATTER);
+    }
+
 
 
 
@@ -261,6 +386,9 @@ public class UserServiceImpl implements UserService {
     }
 
     private String extractAccessToken(Authentication authentication) {
+        if (authentication == null) {
+            return null;
+        }
         if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
             return jwtAuthenticationToken.getToken().getTokenValue();
         }
@@ -269,6 +397,66 @@ public class UserServiceImpl implements UserService {
             return tokenString;
         }
         return null;
+    }
+
+    private UUID resolveAuthenticatedUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            throw new AuthenticationCredentialsNotFoundException("Требуется вход");
+        }
+        return userRepository.findByUsername(authentication.getName())
+                .map(User::getId)
+                .orElseThrow(() -> new AuthenticationCredentialsNotFoundException("Требуется вход"));
+    }
+
+    private void ensureCompanyAndPermissionScope(UUID currentUserId, UUID targetUserId, String companyId) {
+        if (companyId == null || companyId.isBlank()) {
+            throw new IllegalArgumentException("companyId is required");
+        }
+
+        String normalizedCompanyId = companyId.trim();
+        String authorizationHeader = resolveAuthorizationHeader();
+        String currentUserCompanyId = cmsCompanyInfoClient.fetchCompanyIdByUserId(currentUserId.toString(), authorizationHeader);
+        String targetUserCompanyId = cmsCompanyInfoClient.fetchCompanyIdByUserId(targetUserId.toString(), authorizationHeader);
+
+        boolean isInCompanyScope = normalizedCompanyId.equals(currentUserCompanyId)
+                && normalizedCompanyId.equals(targetUserCompanyId);
+        if (!isInCompanyScope) {
+            throw new AccessDeniedException("Недостаточно прав для изменения статуса пользователя");
+        }
+
+        ensureUserHasPermission(currentUserId, PermissionValueType.EDIT_USERS, "Недостаточно прав для изменения статуса пользователя");
+    }
+
+    private String resolveAuthorizationHeader() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String accessToken = extractAccessToken(authentication);
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new AuthenticationCredentialsNotFoundException("Требуется вход");
+        }
+        return accessToken.startsWith("Bearer ") ? accessToken : "Bearer " + accessToken;
+    }
+
+    private void ensureUserHasPermission(UUID userId, PermissionValueType permission, String errorMessage) {
+        String sql = """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM permissions p
+                    WHERE p.user_id = ?
+                      AND p.value @> ARRAY[?]::permission_value_enum[]
+                )
+                """;
+
+        Boolean hasPermission = jdbcTemplate.queryForObject(
+                sql,
+                Boolean.class,
+                userId,
+                permission.name()
+        );
+
+        if (!Boolean.TRUE.equals(hasPermission)) {
+            throw new AccessDeniedException(errorMessage);
+        }
     }
 
 }
