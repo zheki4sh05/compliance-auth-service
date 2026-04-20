@@ -65,9 +65,12 @@ public class CmsCompanyInfoClient {
                     .body(String.class);
 
             if (responseBody == null || responseBody.isBlank()) {
+                log.info("fetchCompanyIdByUserId: complete userId={}, companyId=null (empty response)", userId);
                 return null;
             }
-            return normalizeCompanyId(responseBody);
+            String companyId = normalizeCompanyId(responseBody);
+            log.info("fetchCompanyIdByUserId: complete userId={}, companyId={}", userId, companyId);
+            return companyId;
         } catch (Exception ex) {
             log.warn("Failed to fetch companyId from cms-company-info for user {}: {}", userId, ex.getMessage());
             return null;

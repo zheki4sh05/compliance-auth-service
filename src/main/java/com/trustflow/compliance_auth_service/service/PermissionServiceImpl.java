@@ -36,9 +36,21 @@ public class PermissionServiceImpl implements PermissionService {
     @Override
     @Transactional(readOnly = true)
     public AccessPermissionsDto getUserAccessPermissions(UUID userId, String companyId) {
+        log.info("getUserAccessPermissions: start targetUserId={}, companyId={}", userId, companyId);
+
         UUID currentUserId = ensureCurrentUserCanManagePermissions();
+        log.info("getUserAccessPermissions: ensureCurrentUserCanManagePermissions done currentUserId={}", currentUserId);
+
         ensureUserExists(userId);
+        log.info("getUserAccessPermissions: ensureUserExists done targetUserId={}", userId);
+
         ensureCompanyScope(currentUserId, userId, companyId);
+        log.info(
+                "getUserAccessPermissions: ensureCompanyScope done currentUserId={}, targetUserId={}, companyId={}",
+                currentUserId,
+                userId,
+                companyId
+        );
 
         String sql = """
                 SELECT DISTINCT unnest(value)::text AS permission
@@ -53,9 +65,24 @@ public class PermissionServiceImpl implements PermissionService {
                 userId
         );
 
-        return AccessPermissionsDto.builder()
+        log.info(
+                "getUserAccessPermissions: loaded {} distinct permission(s) from DB for targetUserId={}",
+                permissions.size(),
+                userId
+        );
+        log.debug("getUserAccessPermissions: permissions list for targetUserId={}: {}", userId, permissions);
+
+        AccessPermissionsDto result = AccessPermissionsDto.builder()
                 .accessPermissions(permissions)
                 .build();
+
+        log.info(
+                "getUserAccessPermissions: complete targetUserId={}, companyId={}, permissionCount={}",
+                userId,
+                companyId,
+                permissions.size()
+        );
+        return result;
     }
 
     @Override
@@ -117,12 +144,15 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     private UUID ensureCurrentUserCanManagePermissions() {
+        log.debug("ensureCurrentUserCanManagePermissions: start");
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
+            log.warn("ensureCurrentUserCanManagePermissions: no authenticated user");
             throw new AccessDeniedException("Authentication required");
         }
 
         String username = authentication.getName();
+        log.debug("ensureCurrentUserCanManagePermissions: resolved principal username={}", username);
         UUID currentUserId = userRepository.findByUsername(username)
                 .map(user -> user.getId())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
@@ -137,17 +167,27 @@ public class PermissionServiceImpl implements PermissionService {
                 """;
 
         Boolean hasEditUsersPermission = jdbcTemplate.queryForObject(sql, Boolean.class, currentUserId);
+        log.info(
+                "ensureCurrentUserCanManagePermissions: currentUserId={}, hasEditUsersPermission={}",
+                currentUserId,
+                hasEditUsersPermission
+        );
         if (!Boolean.TRUE.equals(hasEditUsersPermission)) {
+            log.warn("ensureCurrentUserCanManagePermissions: denied currentUserId={} — EDIT_USERS missing", currentUserId);
             throw new AccessDeniedException("Permission EDIT_USERS is required");
         }
 
+        log.info("ensureCurrentUserCanManagePermissions: complete returning currentUserId={}", currentUserId);
         return currentUserId;
     }
 
     private void ensureUserExists(UUID userId) {
+        log.debug("ensureUserExists: start userId={}", userId);
         if (userRepository.findById(userId).isEmpty()) {
+            log.warn("ensureUserExists: user not found userId={}", userId);
             throw new UsernameNotFoundException("User not found with id: " + userId);
         }
+        log.info("ensureUserExists: complete userId={} exists", userId);
     }
 
     private Set<PermissionValueType> normalizePermissions(List<String> permissions) {
@@ -197,7 +237,14 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     private void ensureCompanyScope(UUID currentUserId, UUID targetUserId, String companyId) {
+        log.info(
+                "ensureCompanyScope: start currentUserId={}, targetUserId={}, companyIdHeader={}",
+                currentUserId,
+                targetUserId,
+                companyId
+        );
         if (companyId == null || companyId.isBlank()) {
+            log.warn("ensureCompanyScope: companyId header missing");
             throw new IllegalArgumentException("companyId header is required");
         }
         String normalizedCompanyId = companyId.trim();
@@ -206,28 +253,54 @@ public class PermissionServiceImpl implements PermissionService {
         String currentUserCompanyId = cmsCompanyInfoClient.fetchCompanyIdByUserId(currentUserId.toString(), authorizationHeader);
         String targetUserCompanyId = cmsCompanyInfoClient.fetchCompanyIdByUserId(targetUserId.toString(), authorizationHeader);
 
+        log.info(
+                "ensureCompanyScope: resolved companyIds — header={}, currentUserCompanyId={}, targetUserCompanyId={}",
+                normalizedCompanyId,
+                currentUserCompanyId,
+                targetUserCompanyId
+        );
+
         boolean isInCompanyScope = normalizedCompanyId.equals(currentUserCompanyId)
                 && normalizedCompanyId.equals(targetUserCompanyId);
 
         if (!isInCompanyScope) {
+            log.warn(
+                    "ensureCompanyScope: denied — scope mismatch header={}, currentUser={}, target={}",
+                    normalizedCompanyId,
+                    currentUserCompanyId,
+                    targetUserCompanyId
+            );
             throw new AccessDeniedException("Permission management is allowed only within the requested company scope");
         }
+        log.info(
+                "ensureCompanyScope: complete currentUserId={}, targetUserId={}, companyId={}",
+                currentUserId,
+                targetUserId,
+                normalizedCompanyId
+        );
     }
 
     private String resolveAuthorizationHeader() {
+        log.debug("resolveAuthorizationHeader: start");
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
+            log.warn("resolveAuthorizationHeader: no authenticated user");
             throw new AccessDeniedException("Authentication required");
         }
 
         if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
-            return "Bearer " + jwtAuthenticationToken.getToken().getTokenValue();
+            String header = "Bearer " + jwtAuthenticationToken.getToken().getTokenValue();
+            log.info("resolveAuthorizationHeader: complete source=jwt tokenLength={}", header.length());
+            return header;
         }
         Object credentials = authentication.getCredentials();
         if (credentials instanceof String tokenString && !tokenString.isBlank()) {
-            return tokenString.startsWith("Bearer ") ? tokenString : "Bearer " + tokenString;
+            String header = tokenString.startsWith("Bearer ") ? tokenString : "Bearer " + tokenString;
+            log.info("resolveAuthorizationHeader: complete source=credentials headerLength={}", header.length());
+            return header;
         }
 
+        log.warn("resolveAuthorizationHeader: no bearer token in authentication");
         throw new AccessDeniedException("Authentication token is required");
     }
 }

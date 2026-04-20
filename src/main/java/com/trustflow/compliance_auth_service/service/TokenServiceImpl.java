@@ -425,8 +425,6 @@ public class TokenServiceImpl implements TokenService {
                     .build();
         } catch (org.springframework.security.authentication.BadCredentialsException ex) {
             throw ex;
-        } catch (org.springframework.security.authentication.BadCredentialsException ex) {
-            throw ex;
         } catch (org.springframework.security.core.AuthenticationException e) {
             throw new org.springframework.security.authentication.BadCredentialsException("Неверный email или пароль");
         }
@@ -472,18 +470,21 @@ public class TokenServiceImpl implements TokenService {
                     .map(r -> r.getName().name())
                     .orElse("USER");
 
+            String companyId = resolveCompanyIdForAdminLogin(user.getId(), adminTokens.getAccessToken());
+
             AdminLoginUserDto userDto = AdminLoginUserDto.builder()
                     .id(user.getId().toString())
                     .name(buildDisplayName(user))
                     .email(user.getEmail())
                     .role(role)
-                    .companyId(resolveCompanyId(user.getId()))
+                    .companyId(companyId)
                     .employeeId(cmsCompanyInfoClient.fetchEmployeeId(adminTokens.getAccessToken()))
                     .build();
 
             return AdminLoginResponse.builder()
                     .accessToken(adminTokens.getAccessToken())
                     .refreshToken(adminTokens.getRefreshToken())
+                    .companyId(companyId)
                     .user(userDto)
                     .build();
         } catch (org.springframework.security.core.AuthenticationException e) {
@@ -673,6 +674,35 @@ public class TokenServiceImpl implements TokenService {
         } catch (DataAccessException ex) {
             return null;
         }
+    }
+
+    /**
+     * Сначала company_id из users; если пусто — из cms-company-info по access token, затем сохранение в БД.
+     */
+    private String resolveCompanyIdForAdminLogin(UUID userId, String accessToken) {
+        String fromDb = resolveCompanyId(userId);
+        if (fromDb != null && !fromDb.isBlank()) {
+            return fromDb.trim();
+        }
+        String fromCms = cmsCompanyInfoClient.fetchCompanyIdByUserId(userId.toString(), "Bearer " + accessToken);
+        if (fromCms == null || fromCms.isBlank()) {
+            return null;
+        }
+        String trimmed = fromCms.trim();
+        try {
+            UUID companyUuid = UUID.fromString(trimmed);
+            int updated = jdbcTemplate.update(
+                    "UPDATE users SET company_id = ? WHERE id = ?",
+                    companyUuid,
+                    userId
+            );
+            log.info("resolveCompanyIdForAdminLogin: persisted company_id from CMS userId={}, companyId={}, rowsUpdated={}",
+                    userId, companyUuid, updated);
+        } catch (IllegalArgumentException ex) {
+            log.warn("resolveCompanyIdForAdminLogin: CMS returned non-UUID company id, not persisting userId={}, value={}",
+                    userId, trimmed);
+        }
+        return trimmed;
     }
 
     private AuthorizationServerContext buildAuthorizationServerContext() {
