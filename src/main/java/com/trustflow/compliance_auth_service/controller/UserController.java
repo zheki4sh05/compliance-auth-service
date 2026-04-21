@@ -3,6 +3,7 @@ package com.trustflow.compliance_auth_service.controller;
 import com.trustflow.compliance_auth_service.dto.AdminLoginUserDto;
 import com.trustflow.compliance_auth_service.dto.CompanyUsersResponseDto;
 import com.trustflow.compliance_auth_service.dto.UserDto;
+import com.trustflow.compliance_auth_service.dto.UserProfileUpdateRequestDto;
 import com.trustflow.compliance_auth_service.dto.UserStatusDto;
 import com.trustflow.compliance_auth_service.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,8 +51,8 @@ public class UserController {
 
     @Operation(summary = "Обновить пользователя")
     @PutMapping("/{id}")
-    public ResponseEntity<UserDto> updateUser(@PathVariable UUID id, @RequestBody UserDto userDto) {
-        UserDto updated = userService.update(id, userDto);
+    public ResponseEntity<UserDto> updateUser(@PathVariable UUID id, @RequestBody UserProfileUpdateRequestDto userProfileUpdateRequestDto) {
+        UserDto updated = userService.update(id, userProfileUpdateRequestDto);
         return ResponseEntity.ok(updated);
     }
 

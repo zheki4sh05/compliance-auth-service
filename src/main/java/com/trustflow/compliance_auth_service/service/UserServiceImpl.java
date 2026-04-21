@@ -130,35 +130,41 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserDto update(UUID id, UserDto userDto) {
+    public UserDto update(UUID id, UserProfileUpdateRequestDto userProfileUpdateRequestDto) {
         log.info("Updating user with id: {}", id);
+
+        UUID authenticatedUserId = resolveAuthenticatedUserId();
+        if (!authenticatedUserId.equals(id)) {
+            throw new AccessDeniedException("Можно изменять только собственный профиль");
+        }
 
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + id));
 
-        // Обновление полей
-        if (userDto.getEmail() != null && !userDto.getEmail().equals(user.getEmail())) {
-            if (userRepository.findByEmail(userDto.getEmail()).isPresent()) {
-                throw new IllegalArgumentException("Email already in use: " + userDto.getEmail());
+        if (userProfileUpdateRequestDto.getEmail() != null) {
+            String normalizedEmail = userProfileUpdateRequestDto.getEmail().trim();
+            if (normalizedEmail.isBlank()) {
+                throw new IllegalArgumentException("Email must not be blank");
             }
-            user.setEmail(userDto.getEmail());
+
+            if (!normalizedEmail.equals(user.getEmail())) {
+                userRepository.findByEmail(normalizedEmail)
+                        .filter(existingUser -> !existingUser.getId().equals(id))
+                        .ifPresent(existingUser -> {
+                            throw new IllegalArgumentException("Email already in use: " + normalizedEmail);
+                        });
+                user.setEmail(normalizedEmail);
+            }
         }
 
-        if (userDto.getPassword() != null && !userDto.getPassword().isEmpty()) {
-            user.setPassword(passwordEncoder.encode(userDto.getPassword()));
+        if (userProfileUpdateRequestDto.getFirstName() != null) {
+            String normalizedFirstName = userProfileUpdateRequestDto.getFirstName().trim();
+            user.setFirstName(normalizedFirstName.isBlank() ? null : normalizedFirstName);
         }
 
-        if (userDto.getEnabled() != null) {
-            user.setEnabled(userDto.getEnabled());
-        }
-
-        // Обновление ролей
-        if (userDto.getRoles() != null && !userDto.getRoles().isEmpty()) {
-            Set<Role> roles = userDto.getRoles().stream()
-                    .map(roleType -> roleRepository.findByName(roleType)
-                            .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleType)))
-                    .collect(Collectors.toSet());
-            user.setRoles(roles);
+        if (userProfileUpdateRequestDto.getLastName() != null) {
+            String normalizedLastName = userProfileUpdateRequestDto.getLastName().trim();
+            user.setLastName(normalizedLastName.isBlank() ? null : normalizedLastName);
         }
 
         User updatedUser = userRepository.save(user);
@@ -239,6 +245,8 @@ public class UserServiceImpl implements UserService {
         return AdminLoginUserDto.builder()
                 .id(user.getId().toString())
                 .name(buildDisplayName(user))
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
                 .email(user.getEmail())
                 .role(role)
                 .companyId(resolveCompanyId(user.getId()))
@@ -252,6 +260,8 @@ public class UserServiceImpl implements UserService {
         dto.setId(user.getId());
         dto.setUsername(user.getUsername());
         dto.setEmail(user.getEmail());
+        dto.setFirstName(user.getFirstName());
+        dto.setLastName(user.getLastName());
         dto.setEnabled(user.getEnabled());
         dto.setCreatedAt(user.getCreatedAt());
         dto.setUpdatedAt(user.getUpdatedAt());

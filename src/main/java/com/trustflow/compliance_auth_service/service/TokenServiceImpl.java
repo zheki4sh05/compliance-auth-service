@@ -475,6 +475,8 @@ public class TokenServiceImpl implements TokenService {
             AdminLoginUserDto userDto = AdminLoginUserDto.builder()
                     .id(user.getId().toString())
                     .name(buildDisplayName(user))
+                    .firstName(user.getFirstName())
+                    .lastName(user.getLastName())
                     .email(user.getEmail())
                     .role(role)
                     .companyId(companyId)

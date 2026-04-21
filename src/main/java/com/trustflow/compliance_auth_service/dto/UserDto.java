@@ -11,6 +11,8 @@ public class UserDto {
     private UUID id;
     private String username;
     private String email;
+    private String firstName;
+    private String lastName;
     private Set<RoleType> roles;
     private Boolean enabled;
     private LocalDateTime createdAt;

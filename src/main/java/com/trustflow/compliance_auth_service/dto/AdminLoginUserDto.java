@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 public class AdminLoginUserDto {
     private String id;
     private String name;
+    private String firstName;
+    private String lastName;
     private String email;
     private String role;
     private String companyId;
