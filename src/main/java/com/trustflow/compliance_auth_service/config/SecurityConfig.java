@@ -56,6 +56,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").hasRole("EXECUTIVE")
 
                         // User endpoints с ролями
+                        .requestMatchers(HttpMethod.GET, "/api/internal/users/{id}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/{id}").authenticated()
