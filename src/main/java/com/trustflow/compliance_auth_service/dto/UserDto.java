@@ -1,5 +1,7 @@
 package com.trustflow.compliance_auth_service.dto;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.trustflow.compliance_auth_service.domain.enums.*;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -17,6 +19,8 @@ public class UserDto {
     private Boolean enabled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @Schema(accessMode = Schema.AccessMode.WRITE_ONLY, description = "Пароль используется только во входящих запросах")
     private String password;
 }
 

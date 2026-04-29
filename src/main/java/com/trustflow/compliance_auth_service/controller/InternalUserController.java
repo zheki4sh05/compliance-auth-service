@@ -2,7 +2,8 @@ package com.trustflow.compliance_auth_service.controller;
 
 import com.trustflow.compliance_auth_service.dto.UserDto;
 import com.trustflow.compliance_auth_service.service.UserService;
-import io.swagger.v3.oas.annotations.Hidden;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -16,14 +17,15 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
 
-@Hidden
 @RestController
 @RequestMapping("/api/internal/users")
 @RequiredArgsConstructor
+@Tag(name = "Internal User API", description = "Внутренние локальные эндпоинты для межсервисного взаимодействия")
 public class InternalUserController {
 
     private final UserService userService;
 
+    @Operation(summary = "Получить пользователя по ID (локальный межсервисный API)")
     @GetMapping("/{id}")
     public ResponseEntity<UserDto> getUserByIdForInternalUse(
             @PathVariable UUID id,

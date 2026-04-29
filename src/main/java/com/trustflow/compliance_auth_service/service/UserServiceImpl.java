@@ -354,15 +354,18 @@ public class UserServiceImpl implements UserService {
 
     private String resolveJobTitle(Set<Role> roles) {
         if (roles == null || roles.isEmpty()) {
-            return "employee";
+            return "manager";
         }
         if (roles.stream().anyMatch(role -> role.getName() == RoleType.EXECUTIVE)) {
-            return "top_management";
+            return "executive";
         }
         if (roles.stream().anyMatch(role -> role.getName() == RoleType.SUPERVISOR)) {
-            return "middle_management";
+            return "supervisor";
         }
-        return "employee";
+        if (roles.stream().anyMatch(role -> role.getName() == RoleType.MANAGER)) {
+            return "manager";
+        }
+        return "manager";
     }
 
     private String formatCreatedAt(LocalDateTime createdAt) {
