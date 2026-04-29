@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
@@ -24,6 +25,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "User Management", description = "Endpoints для управления пользователями")
 @SecurityRequirement(name = "Bearer Authentication")
 public class UserController {
@@ -33,7 +35,11 @@ public class UserController {
     @Operation(summary = "Получить всех пользователей")
     @GetMapping
     public ResponseEntity<CompanyUsersResponseDto> getAllUsers(@RequestHeader("companyId") String companyId) {
-        return ResponseEntity.ok(userService.findAllByCompanyId(companyId));
+        log.info("API getAllUsers: start, companyId={}", companyId);
+        CompanyUsersResponseDto response = userService.findAllByCompanyId(companyId);
+        int itemsCount = response != null && response.getItems() != null ? response.getItems().size() : 0;
+        log.info("API getAllUsers: complete, companyId={}, itemsCount={}", companyId, itemsCount);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Получить пользователя по ID")

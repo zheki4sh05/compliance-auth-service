@@ -38,26 +38,35 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public CompanyUsersResponseDto findAllByCompanyId(String companyId) {
+        log.info("findAllByCompanyId: start, companyId={}", companyId);
         UUID currentUserId = resolveAuthenticatedUserId();
+        log.info("findAllByCompanyId: resolved currentUserId={}", currentUserId);
         ensureUserHasPermission(currentUserId, PermissionValueType.VIEW_USERS_PAGE, "Недостаточно прав для просмотра пользователей");
+        log.info("findAllByCompanyId: permission check passed, userId={}, permission={}", currentUserId, PermissionValueType.VIEW_USERS_PAGE);
 
         UUID parsedCompanyId = parseCompanyId(companyId);
-        log.info("Fetching users for companyId={}", parsedCompanyId);
+        log.info("findAllByCompanyId: parsed companyId={}, rawCompanyId={}", parsedCompanyId, companyId);
 
         List<User> users = userRepository.findAllByCompanyId(parsedCompanyId);
+        log.info("findAllByCompanyId: users fetched, companyId={}, usersCount={}", parsedCompanyId, users.size());
+        log.debug("findAllByCompanyId: fetched userIds={}", users.stream().map(User::getId).toList());
         if (users.isEmpty()) {
+            log.info("findAllByCompanyId: no users found, companyId={}", parsedCompanyId);
             return CompanyUsersResponseDto.builder()
                     .items(List.of())
                     .build();
         }
 
         Map<UUID, List<String>> accessPermissionsByUserId = loadAccessPermissions(users);
+        log.info("findAllByCompanyId: permissions loaded, usersWithPermissionsCount={}", accessPermissionsByUserId.size());
         List<CompanyUserItemDto> items = users.stream()
                 .map(user -> mapToCompanyUserItemDto(
                         user,
                         accessPermissionsByUserId.getOrDefault(user.getId(), List.of())
                 ))
                 .toList();
+        log.debug("findAllByCompanyId: mapped items={}", items);
+        log.info("findAllByCompanyId: complete, companyId={}, itemsCount={}", parsedCompanyId, items.size());
 
         return CompanyUsersResponseDto.builder()
                 .items(items)
@@ -276,7 +285,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private CompanyUserItemDto mapToCompanyUserItemDto(User user, List<String> accessPermissions) {
-        return CompanyUserItemDto.builder()
+        CompanyUserItemDto item = CompanyUserItemDto.builder()
                 .id(user.getId().toString())
                 .name(buildDisplayName(user))
                 .email(user.getEmail())
@@ -285,13 +294,21 @@ public class UserServiceImpl implements UserService {
                 .accessPermissions(accessPermissions)
                 .createdAt(formatCreatedAt(user.getCreatedAt()))
                 .build();
+        log.debug("mapToCompanyUserItemDto: mapped userId={}, status={}, jobTitle={}, permissionsCount={}",
+                user.getId(),
+                item.getStatus(),
+                item.getJobTitle(),
+                accessPermissions != null ? accessPermissions.size() : 0);
+        return item;
     }
 
     private Map<UUID, List<String>> loadAccessPermissions(List<User> users) {
+        log.debug("loadAccessPermissions: start, usersCount={}", users.size());
         List<UUID> userIds = users.stream()
                 .map(User::getId)
                 .toList();
         if (userIds.isEmpty()) {
+            log.debug("loadAccessPermissions: no userIds provided");
             return Map.of();
         }
 
@@ -315,16 +332,22 @@ public class UserServiceImpl implements UserService {
                     .add(permission.toLowerCase(Locale.ROOT));
         });
 
+        log.debug("loadAccessPermissions: complete, userIdsCount={}, result={}", userIds.size(), result);
         return result;
     }
 
     private UUID parseCompanyId(String companyId) {
+        log.debug("parseCompanyId: input companyId={}", companyId);
         if (companyId == null || companyId.isBlank()) {
+            log.warn("parseCompanyId: companyId is blank");
             throw new IllegalArgumentException("companyId is required");
         }
         try {
-            return UUID.fromString(companyId.trim());
+            UUID parsed = UUID.fromString(companyId.trim());
+            log.debug("parseCompanyId: parsed companyId={}", parsed);
+            return parsed;
         } catch (IllegalArgumentException ex) {
+            log.warn("parseCompanyId: invalid companyId={}, error={}", companyId, ex.getMessage());
             throw new IllegalArgumentException("Некорректный companyId");
         }
     }
@@ -411,12 +434,17 @@ public class UserServiceImpl implements UserService {
 
     private UUID resolveAuthenticatedUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String authName = authentication != null ? authentication.getName() : null;
+        log.debug("resolveAuthenticatedUserId: authenticationName={}", authName);
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            log.warn("resolveAuthenticatedUserId: user is not authenticated");
             throw new AuthenticationCredentialsNotFoundException("Требуется вход");
         }
-        return userRepository.findByUsername(authentication.getName())
+        UUID resolvedUserId = userRepository.findByUsername(authentication.getName())
                 .map(User::getId)
                 .orElseThrow(() -> new AuthenticationCredentialsNotFoundException("Требуется вход"));
+        log.debug("resolveAuthenticatedUserId: resolved userId={}", resolvedUserId);
+        return resolvedUserId;
     }
 
     private void ensureCompanyAndPermissionScope(UUID currentUserId, UUID targetUserId, String companyId) {
@@ -448,6 +476,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private void ensureUserHasPermission(UUID userId, PermissionValueType permission, String errorMessage) {
+        log.debug("ensureUserHasPermission: checking userId={}, permission={}", userId, permission);
         String sql = """
                 SELECT EXISTS (
                     SELECT 1
@@ -464,7 +493,9 @@ public class UserServiceImpl implements UserService {
                 permission.name()
         );
 
+        log.debug("ensureUserHasPermission: result userId={}, permission={}, hasPermission={}", userId, permission, hasPermission);
         if (!Boolean.TRUE.equals(hasPermission)) {
+            log.warn("ensureUserHasPermission: access denied userId={}, permission={}", userId, permission);
             throw new AccessDeniedException(errorMessage);
         }
     }

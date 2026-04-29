@@ -9,6 +9,11 @@ spring:
     name: compliance-auth-service
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:auth-service}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -89,6 +94,7 @@ app:
   kafka:
     topics:
       company: ${KAFKA_TOPIC_COMPANY:company}
+      auth: ${KAFKA_TOPIC_AUTH:auth_topic}
 
 integration:
   cms-company-info:
