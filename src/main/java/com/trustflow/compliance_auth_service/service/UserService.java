@@ -8,6 +8,7 @@ import java.util.UUID;
 public interface UserService {
     CompanyUsersResponseDto findAllByCompanyId(String companyId);
     UserDto findById(UUID id);
+    UserBasicInfoDto findBasicInfoById(UUID id);
     UserDto findByUsername(String username);
     UserDto create(UserDto userDto);
     UserDto update(UUID id, UserProfileUpdateRequestDto userProfileUpdateRequestDto);

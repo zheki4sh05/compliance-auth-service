@@ -2,6 +2,7 @@ package com.trustflow.compliance_auth_service.controller;
 
 import com.trustflow.compliance_auth_service.dto.AdminLoginUserDto;
 import com.trustflow.compliance_auth_service.dto.CompanyUsersResponseDto;
+import com.trustflow.compliance_auth_service.dto.UserBasicInfoDto;
 import com.trustflow.compliance_auth_service.dto.UserDto;
 import com.trustflow.compliance_auth_service.dto.UserProfileUpdateRequestDto;
 import com.trustflow.compliance_auth_service.dto.UserStatusDto;
@@ -46,6 +47,12 @@ public class UserController {
     @GetMapping("/{id}")
     public ResponseEntity<UserDto> getUserById(@PathVariable UUID id) {
         return ResponseEntity.ok(userService.findById(id));
+    }
+
+    @Operation(summary = "Получить имя и username пользователя по ID")
+    @GetMapping("/{id}/basic-info")
+    public ResponseEntity<UserBasicInfoDto> getUserBasicInfoById(@PathVariable UUID id) {
+        return ResponseEntity.ok(userService.findBasicInfoById(id));
     }
 
     @Operation(summary = "Создать нового пользователя")

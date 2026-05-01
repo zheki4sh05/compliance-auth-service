@@ -84,6 +84,20 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
+    public UserBasicInfoDto findBasicInfoById(UUID id) {
+        log.info("Fetching basic user info by id: {}", id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + id));
+
+        return UserBasicInfoDto.builder()
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .username(user.getUsername())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public UserDto findByUsername(String username) {
         log.info("Fetching user by username: {}", username);
         User user = userRepository.findByUsername(username)
