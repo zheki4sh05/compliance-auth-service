@@ -1,5 +1,6 @@
 package com.trustflow.compliance_auth_service.service;
 
+import com.trustflow.compliance_auth_service.domain.User;
 import com.trustflow.compliance_auth_service.domain.enums.PermissionValueType;
 import com.trustflow.compliance_auth_service.dto.AccessPermissionsDto;
 import com.trustflow.compliance_auth_service.dto.PermissionAccessCheckResponseDto;
@@ -38,8 +39,7 @@ public class PermissionServiceImpl implements PermissionService {
     public AccessPermissionsDto getUserAccessPermissions(UUID userId, String companyId) {
         log.info("getUserAccessPermissions: start targetUserId={}, companyId={}", userId, companyId);
 
-        UUID currentUserId = ensureCurrentUserCanManagePermissions();
-        log.info("getUserAccessPermissions: ensureCurrentUserCanManagePermissions done currentUserId={}", currentUserId);
+        UUID currentUserId = resolveCurrentAuthenticatedUserId();
 
         ensureUserExists(userId);
         log.info("getUserAccessPermissions: ensureUserExists done targetUserId={}", userId);
@@ -143,42 +143,57 @@ public class PermissionServiceImpl implements PermissionService {
                 .build();
     }
 
+    /** Изменение прав (PUT /access) — только с EDIT_USERS. */
     private UUID ensureCurrentUserCanManagePermissions() {
-        log.debug("ensureCurrentUserCanManagePermissions: start");
+        UUID currentUserId = resolveCurrentAuthenticatedUserId();
+        ensurePrincipalHasPermission(
+                currentUserId,
+                PermissionValueType.EDIT_USERS,
+                "Permission EDIT_USERS is required"
+        );
+        log.info("ensureCurrentUserCanManagePermissions: complete currentUserId={}", currentUserId);
+        return currentUserId;
+    }
+
+    private UUID resolveCurrentAuthenticatedUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            log.warn("ensureCurrentUserCanManagePermissions: no authenticated user");
+            log.warn("resolveCurrentAuthenticatedUserId: no authenticated user");
             throw new AccessDeniedException("Authentication required");
         }
 
         String username = authentication.getName();
-        log.debug("ensureCurrentUserCanManagePermissions: resolved principal username={}", username);
-        UUID currentUserId = userRepository.findByUsername(username)
-                .map(user -> user.getId())
+        log.debug("resolveCurrentAuthenticatedUserId: principal username={}", username);
+        return userRepository.findByUsername(username)
+                .map(User::getId)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+    }
 
+    private void ensurePrincipalHasPermission(UUID principalUserId, PermissionValueType permission, String denialMessage) {
         String sql = """
                 SELECT EXISTS (
                     SELECT 1
                     FROM permissions
                     WHERE user_id = ?
-                      AND value @> ARRAY['EDIT_USERS']::permission_value_enum[]
+                      AND value @> ARRAY[?]::permission_value_enum[]
                 )
                 """;
 
-        Boolean hasEditUsersPermission = jdbcTemplate.queryForObject(sql, Boolean.class, currentUserId);
-        log.info(
-                "ensureCurrentUserCanManagePermissions: currentUserId={}, hasEditUsersPermission={}",
-                currentUserId,
-                hasEditUsersPermission
+        Boolean hasPermission = jdbcTemplate.queryForObject(sql, Boolean.class, principalUserId, permission.name());
+        log.debug(
+                "ensurePrincipalHasPermission: principalUserId={}, permission={}, ok={}",
+                principalUserId,
+                permission,
+                hasPermission
         );
-        if (!Boolean.TRUE.equals(hasEditUsersPermission)) {
-            log.warn("ensureCurrentUserCanManagePermissions: denied currentUserId={} — EDIT_USERS missing", currentUserId);
-            throw new AccessDeniedException("Permission EDIT_USERS is required");
+        if (!Boolean.TRUE.equals(hasPermission)) {
+            log.warn(
+                    "ensurePrincipalHasPermission: denied principalUserId={}, missing {}",
+                    principalUserId,
+                    permission
+            );
+            throw new AccessDeniedException(denialMessage);
         }
-
-        log.info("ensureCurrentUserCanManagePermissions: complete returning currentUserId={}", currentUserId);
-        return currentUserId;
     }
 
     private void ensureUserExists(UUID userId) {

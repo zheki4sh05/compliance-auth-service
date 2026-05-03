@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -459,8 +460,8 @@ public class TokenServiceImpl implements TokenService {
             User user = userRepository.findByUsername(actualUsername)
                     .orElseThrow(() -> new org.springframework.security.authentication.BadCredentialsException("Неверный email или пароль"));
 
-            if (!hasAllPermissionsForAdminPanel(user.getId())) {
-                throw new org.springframework.security.authentication.BadCredentialsException("Access Denied");
+            if (!canAccessAdminPanel(user.getId())) {
+                throw new AccessDeniedException("Недостаточно прав для входа в админ-панель");
             }
 
             TokenResponse adminTokens = issueAdminPanelTokens(authentication, clientId, user.getId());
@@ -489,6 +490,8 @@ public class TokenServiceImpl implements TokenService {
                     .companyId(companyId)
                     .user(userDto)
                     .build();
+        } catch (org.springframework.security.authentication.BadCredentialsException ex) {
+            throw ex;
         } catch (org.springframework.security.core.AuthenticationException e) {
             throw new org.springframework.security.authentication.BadCredentialsException("Неверный email или пароль");
         }
@@ -639,21 +642,18 @@ public class TokenServiceImpl implements TokenService {
         );
     }
 
-    private boolean hasAllPermissionsForAdminPanel(UUID userId) {
-        String requiredPermissions = Arrays.stream(PermissionValueType.values())
-                .map(Enum::name)
-                .collect(Collectors.joining(",", "{", "}"));
-
+    /** Доступ в админ-панель, если в {@code permissions.value} есть хотя бы один элемент. */
+    private boolean canAccessAdminPanel(UUID userId) {
         String sql = """
                 SELECT EXISTS (
                     SELECT 1
                     FROM permissions
                     WHERE user_id = ?
-                      AND value @> ?::permission_value_enum[]
+                      AND cardinality(value) > 0
                 )
                 """;
-        Boolean hasPermissions = jdbcTemplate.queryForObject(sql, Boolean.class, userId, requiredPermissions);
-        return Boolean.TRUE.equals(hasPermissions);
+        Boolean ok = jdbcTemplate.queryForObject(sql, Boolean.class, userId);
+        return Boolean.TRUE.equals(ok);
     }
 
     private String buildDisplayName(User user) {

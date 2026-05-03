@@ -17,6 +17,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -36,7 +37,7 @@ public class UserServiceImpl implements UserService {
     private final CmsCompanyInfoClient cmsCompanyInfoClient;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public CompanyUsersResponseDto findAllByCompanyId(String companyId) {
         log.info("findAllByCompanyId: start, companyId={}", companyId);
         UUID currentUserId = resolveAuthenticatedUserId();
@@ -55,6 +56,13 @@ public class UserServiceImpl implements UserService {
             return CompanyUsersResponseDto.builder()
                     .items(List.of())
                     .build();
+        }
+
+        try {
+            syncUsersFromCompanyEmployees(parsedCompanyId, users);
+        } catch (RestClientException ex) {
+            log.error("findAllByCompanyId: failed to sync employees from cms-company-info, companyId={}", parsedCompanyId, ex);
+            throw new IllegalStateException("Не удалось получить список сотрудников из cms-company-info", ex);
         }
 
         Map<UUID, List<String>> accessPermissionsByUserId = loadAccessPermissions(users);
@@ -142,7 +150,7 @@ public class UserServiceImpl implements UserService {
             // По умолчанию роль DEFAULT
             Role defaultRole = roleRepository.findByName(RoleType.DEFAULT)
                     .orElseThrow(() -> new IllegalStateException("Default role DEFAULT not found"));
-            user.setRoles(Set.of(defaultRole));
+            user.setRoles(new HashSet<>(Collections.singleton(defaultRole)));
         }
 
         User savedUser = userRepository.save(user);
@@ -363,6 +371,110 @@ public class UserServiceImpl implements UserService {
         } catch (IllegalArgumentException ex) {
             log.warn("parseCompanyId: invalid companyId={}, error={}", companyId, ex.getMessage());
             throw new IllegalArgumentException("Некорректный companyId");
+        }
+    }
+
+    private void syncUsersFromCompanyEmployees(UUID companyId, List<User> users) {
+        String authorizationHeader = resolveAuthorizationHeader();
+        List<CompanyEmployeeResponseDto> employees = cmsCompanyInfoClient.fetchCompanyEmployees(companyId, authorizationHeader);
+
+        Map<UUID, CompanyEmployeeResponseDto> byUserId = new HashMap<>();
+        for (CompanyEmployeeResponseDto employee : employees) {
+            if (employee == null || employee.getId() == null || employee.getId().isBlank()) {
+                continue;
+            }
+            try {
+                byUserId.put(UUID.fromString(employee.getId().trim()), employee);
+            } catch (IllegalArgumentException ex) {
+                log.warn("syncUsersFromCompanyEmployees: skip employee with invalid user id={}", employee.getId());
+            }
+        }
+
+        List<User> modified = new ArrayList<>();
+        for (User user : users) {
+            CompanyEmployeeResponseDto snapshot = byUserId.get(user.getId());
+            if (snapshot == null) {
+                continue;
+            }
+            if (Boolean.TRUE.equals(user.getIsSuperUser())) {
+                log.debug("syncUsersFromCompanyEmployees: skip super user userId={}", user.getId());
+                continue;
+            }
+            if (applyCompanyEmployeeSnapshot(user, snapshot)) {
+                modified.add(user);
+            }
+        }
+
+        if (!modified.isEmpty()) {
+            userRepository.saveAll(modified);
+            log.info("syncUsersFromCompanyEmployees: persisted {} users after CMS sync", modified.size());
+        } else {
+            log.debug("syncUsersFromCompanyEmployees: no local user fields changed");
+        }
+    }
+
+    private boolean applyCompanyEmployeeSnapshot(User user, CompanyEmployeeResponseDto emp) {
+        boolean changed = false;
+
+        Optional<RoleType> cmsRole = parseCmsRole(emp.getRole());
+        if (cmsRole.isPresent()) {
+            RoleType target = cmsRole.get();
+            if (!userHasExactlyRole(user, target)) {
+                Role roleEntity = roleRepository.findByName(target)
+                        .orElseThrow(() -> new IllegalStateException("Роль не найдена в auth: " + target));
+                Set<Role> newRoles = new HashSet<>();
+                newRoles.add(roleEntity);
+                user.setRoles(newRoles);
+                changed = true;
+            }
+        }
+
+        if (emp.getFirstName() != null && !emp.getFirstName().isBlank()) {
+            String first = emp.getFirstName().trim();
+            String current = user.getFirstName() != null ? user.getFirstName().trim() : "";
+            if (!first.equals(current)) {
+                user.setFirstName(first);
+                changed = true;
+            }
+        }
+
+        if (emp.getLastName() != null && !emp.getLastName().isBlank()) {
+            String last = emp.getLastName().trim();
+            String current = user.getLastName() != null ? user.getLastName().trim() : "";
+            if (!last.equals(current)) {
+                user.setLastName(last);
+                changed = true;
+            }
+        }
+
+        if (emp.getIsFirstLogin() != null && !emp.getIsFirstLogin().equals(user.getIsFirstLogin())) {
+            user.setIsFirstLogin(emp.getIsFirstLogin());
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private boolean userHasExactlyRole(User user, RoleType target) {
+        Set<Role> roles = user.getRoles();
+        if (roles == null || roles.isEmpty()) {
+            return false;
+        }
+        if (roles.size() != 1) {
+            return false;
+        }
+        return roles.iterator().next().getName() == target;
+    }
+
+    private Optional<RoleType> parseCmsRole(String role) {
+        if (role == null || role.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(RoleType.valueOf(role.trim().toUpperCase(Locale.ROOT)));
+        } catch (IllegalArgumentException ex) {
+            log.warn("parseCmsRole: неизвестная роль из cms-company-info: {}", role);
+            return Optional.empty();
         }
     }
 

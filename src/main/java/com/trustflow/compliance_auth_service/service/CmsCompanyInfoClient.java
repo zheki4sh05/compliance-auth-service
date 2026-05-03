@@ -1,14 +1,18 @@
 package com.trustflow.compliance_auth_service.service;
 
+import com.trustflow.compliance_auth_service.dto.CompanyEmployeeResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -75,6 +79,28 @@ public class CmsCompanyInfoClient {
             log.warn("Failed to fetch companyId from cms-company-info for user {}: {}", userId, ex.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Список сотрудников компании из cms-company-info (источник правды по ролям для админки).
+     */
+    public List<CompanyEmployeeResponseDto> fetchCompanyEmployees(UUID companyId, String authorizationHeader) {
+        log.info("Calling cms-company-info: method=GET, url=/companies/{}/employees", companyId);
+        log.debug("cms-company-info request headers: Authorization={}", maskAuthorizationHeader(authorizationHeader));
+
+        List<CompanyEmployeeResponseDto> body = cmsCompanyInfoRestClient.get()
+                .uri("/companies/{companyId}/employees", companyId)
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<CompanyEmployeeResponseDto>>() {
+                });
+
+        if (body == null) {
+            log.info("fetchCompanyEmployees: empty body, companyId={}", companyId);
+            return List.of();
+        }
+        log.info("fetchCompanyEmployees: complete, companyId={}, count={}", companyId, body.size());
+        return body;
     }
 
     private String maskToken(String token) {
