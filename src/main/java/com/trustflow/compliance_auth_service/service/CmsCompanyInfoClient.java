@@ -1,6 +1,7 @@
 package com.trustflow.compliance_auth_service.service;
 
 import com.trustflow.compliance_auth_service.dto.CompanyEmployeeResponseDto;
+import com.trustflow.compliance_auth_service.dto.EmployeeInternalInfoDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -8,6 +9,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -77,6 +79,60 @@ public class CmsCompanyInfoClient {
             return companyId;
         } catch (Exception ex) {
             log.warn("Failed to fetch companyId from cms-company-info for user {}: {}", userId, ex.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Профиль сотрудника: cms-company-info {@code GET /employee/internal/id/{userId}}.
+     */
+    public EmployeeInternalInfoDto fetchEmployeeInternalByUserId(String userId, String authorizationHeader) {
+        log.info(
+                "Calling cms-company-info: method=GET, path=/employee/internal/id/, pathParamUserId={}, authorizationHeader={}",
+                userId,
+                maskAuthorizationHeader(authorizationHeader));
+
+        try {
+            EmployeeInternalInfoDto body = cmsCompanyInfoRestClient.get()
+                    .uri("/employee/internal/id/{userId}", userId)
+                    .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                    .retrieve()
+                    .body(EmployeeInternalInfoDto.class);
+
+            if (body == null) {
+                log.info(
+                        "cms-company-info GET /employee/internal/id/ completed with empty body, pathParamUserId={}",
+                        userId);
+                return null;
+            }
+
+            log.info(
+                    "cms-company-info GET /employee/internal/id/ success. pathParamUserId={}, employeeId={}, departmentId={}, departmentName={}, departmentRole={}",
+                    userId,
+                    body.getEmployeeId(),
+                    body.getDepartmentId(),
+                    body.getDepartmentName(),
+                    body.getDepartmentRole());
+
+            return body;
+        } catch (RestClientResponseException ex) {
+            log.error(
+                    "cms-company-info GET /employee/internal/id/ HTTP error. pathParamUserId={}, status={}, statusText={}, responseBody={}, authorizationHeader={}",
+                    userId,
+                    ex.getStatusCode().value(),
+                    ex.getStatusText(),
+                    ex.getResponseBodyAsString(StandardCharsets.UTF_8),
+                    maskAuthorizationHeader(authorizationHeader),
+                    ex);
+            return null;
+        } catch (Exception ex) {
+            log.error(
+                    "cms-company-info GET /employee/internal/id/ failed. pathParamUserId={}, authorizationHeader={}, causeType={}, errorMessage={}",
+                    userId,
+                    maskAuthorizationHeader(authorizationHeader),
+                    ex.getClass().getName(),
+                    ex.getMessage(),
+                    ex);
             return null;
         }
     }

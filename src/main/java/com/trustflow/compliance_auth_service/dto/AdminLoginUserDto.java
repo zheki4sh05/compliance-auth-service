@@ -18,4 +18,5 @@ public class AdminLoginUserDto {
     private String role;
     private String companyId;
     private String employeeId;
+    private EmployeeInternalInfoDto employeeInternal;
 }

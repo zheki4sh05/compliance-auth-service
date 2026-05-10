@@ -273,6 +273,10 @@ public class UserServiceImpl implements UserService {
                 .map(r -> r.getName().name())
                 .orElse("USER");
 
+        EmployeeInternalInfoDto employeeInternal = cmsCompanyInfoClient.fetchEmployeeInternalByUserId(
+                user.getId().toString(),
+                resolveAuthorizationHeader());
+
         return AdminLoginUserDto.builder()
                 .id(user.getId().toString())
                 .name(buildDisplayName(user))
@@ -282,6 +286,7 @@ public class UserServiceImpl implements UserService {
                 .role(role)
                 .companyId(resolveCompanyId(user.getId()))
                 .employeeId(resolveEmployeeId(authentication))
+                .employeeInternal(employeeInternal)
                 .build();
     }
 
