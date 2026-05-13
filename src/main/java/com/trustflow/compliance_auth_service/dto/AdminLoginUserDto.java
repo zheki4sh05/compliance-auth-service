@@ -19,4 +19,6 @@ public class AdminLoginUserDto {
     private String companyId;
     private String employeeId;
     private EmployeeInternalInfoDto employeeInternal;
+    /** true, если у пользователя в {@code permissions.value} есть хотя бы одно право */
+    private boolean hasAdminAccess;
 }

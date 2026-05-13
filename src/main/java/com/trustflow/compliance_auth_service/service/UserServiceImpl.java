@@ -287,6 +287,7 @@ public class UserServiceImpl implements UserService {
                 .companyId(resolveCompanyId(user.getId()))
                 .employeeId(resolveEmployeeId(authentication))
                 .employeeInternal(employeeInternal)
+                .hasAdminAccess(userHasNonEmptyPermissions(user.getId()))
                 .build();
     }
 
@@ -542,6 +543,19 @@ public class UserServiceImpl implements UserService {
         } catch (DataAccessException ex) {
             return null;
         }
+    }
+
+    private boolean userHasNonEmptyPermissions(UUID userId) {
+        String sql = """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM permissions
+                    WHERE user_id = ?
+                      AND cardinality(value) > 0
+                )
+                """;
+        Boolean ok = jdbcTemplate.queryForObject(sql, Boolean.class, userId);
+        return Boolean.TRUE.equals(ok);
     }
 
     private String resolveEmployeeId(Authentication authentication) {

@@ -482,6 +482,7 @@ public class TokenServiceImpl implements TokenService {
                     .role(role)
                     .companyId(companyId)
                     .employeeId(cmsCompanyInfoClient.fetchEmployeeId(adminTokens.getAccessToken()))
+                    .hasAdminAccess(true)
                     .build();
 
             return AdminLoginResponse.builder()
